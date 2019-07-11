@@ -78,13 +78,16 @@ converse.plugins.add('converse-minimize', {
                 return this.__super__.initialize.apply(this, arguments);
             },
 
-            _show () {
+            show () {
                 const { _converse } = this.__super__;
                 if (_converse.view_mode !== 'overlayed') {
-                    return this.__super__._show.apply(this, arguments);
+                    return this.__super__.show.apply(this, arguments);
                 } else if (!this.model.get('minimized')) {
-                    this.__super__._show.apply(this, arguments);
-                    _converse.chatboxviews.trimChats(this);
+                    const should_trim = !u.isVisible(this.el);
+                    this.__super__.show.apply(this, arguments);
+                    if (should_trim) {
+                        _converse.chatboxviews.trimChats(this);
+                    }
                 } else {
                     this.model.minimize();
                 }
