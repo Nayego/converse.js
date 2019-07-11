@@ -117,11 +117,8 @@
                 let el = online_contacts[0];
                 const jid = el.textContent.trim().replace(/ /g,'.').toLowerCase() + '@montague.lit';
                 el.click();
-                await u.waitUntil(() => _converse.chatboxes.length == 2);
+                await u.waitUntil(() => document.querySelectorAll("#conversejs .chatbox").length == 2);
                 expect(_converse.chatboxviews.trimChats).toHaveBeenCalled();
-                // Check that new chat boxes are created to the left of the
-                // controlbox (but to the right of all existing chat boxes)
-                expect(document.querySelectorAll("#conversejs .chatbox").length).toBe(2);
                 online_contacts[1].click();
                 await u.waitUntil(() => _converse.chatboxes.length == 3);
                 el = online_contacts[1];
@@ -462,8 +459,8 @@
                     toolbar.querySelector('li.toggle-smiley').click();
 
                     await u.waitUntil(() => u.isVisible(view.el.querySelector('.toggle-smiley .emoji-picker-container')));
-                    var picker = view.el.querySelector('.toggle-smiley .emoji-picker-container');
-                    var items = picker.querySelectorAll('.emoji-picker li');
+                    const picker = view.el.querySelector('.toggle-smiley .emoji-picker-container');
+                    const items = picker.querySelectorAll('.emoji-picker li');
                     items[0].click()
                     expect(view.insertEmoji).toHaveBeenCalled();
                     expect(view.el.querySelector('textarea.chat-textarea').value).toBe(':grinning: ');

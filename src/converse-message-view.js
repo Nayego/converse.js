@@ -6,6 +6,7 @@
 /**
  * @module converse-message-view
  */
+import "@converse/headless/converse-emoji";
 import URI from "urijs";
 import converse from  "@converse/headless/converse-core";
 import filesize from "filesize";
@@ -15,11 +16,10 @@ import tpl_file_progress from "templates/file_progress.html";
 import tpl_info from "templates/info.html";
 import tpl_message from "templates/message.html";
 import tpl_message_versions_modal from "templates/message_versions_modal.html";
-import u from "@converse/headless/utils/emoji";
 import xss from "xss/dist/xss";
 
 const { Backbone, _, dayjs } = converse.env;
-
+const u = converse.env.utils;
 
 converse.plugins.add('converse-message-view', {
 
@@ -185,6 +185,7 @@ converse.plugins.add('converse-message-view', {
             },
 
             async renderChatMessage () {
+                await _converse.api.waitUntil('emojisInitialized');
                 const is_me_message = this.isMeCommand();
                 const time = dayjs(this.model.get('time'));
                 const role = this.model.vcard ? this.model.vcard.get('role') : null;
@@ -227,7 +228,7 @@ converse.plugins.add('converse-message-view', {
                         _.partial(u.addMentionsMarkup, _, this.model.get('references'), this.model.collection.chatbox),
                         u.addHyperlinks,
                         u.renderNewLines,
-                        _.partial(u.addEmoji, _converse, _)
+                        u.addEmoji
                     )(text);
                 }
                 const promise = u.renderImageURLs(_converse, msg_content);
