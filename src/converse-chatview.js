@@ -327,6 +327,8 @@ converse.plugins.add('converse-chatview', {
             events: {
                 'change input.fileupload': 'onFileSelection',
                 'click .chat-msg__action-edit': 'onMessageEditButtonClicked',
+                'click .chat-msg__action-react': 'onMessageReactButtonClicked',
+                'click .chat-msg__reaction': 'onReactionClicked',
                 'click .chatbox-navback': 'showControlBox',
                 'click .close-chatbox-button': 'close',
                 'click .new-msgs-indicator': 'viewUnreadMessages',
@@ -1055,6 +1057,38 @@ converse.plugins.add('converse-chatview', {
                     message.save('correcting', false);
                     this.insertIntoTextArea('', true, false);
                 }
+            },
+              
+            onMessageReactButtonClicked (ev) {
+                ev.preventDefault();
+                const parentNode = u.ancestor(ev.target, '.chat-msg__body');
+                if(!this.model.reactionInProgress){
+                    this.model.reactionInProgress = true;
+                    console.log(parentNode.getElementsByClassName("chat-msg__reactions"));
+                    parentNode.getElementsByClassName("chat-msg__reactions")[0].style.opacity = 1;          
+                }
+                else{
+                    this.model.reactionInProgress = false;
+                    parentNode.getElementsByClassName("chat-msg__reactions")[0].style.opacity = 0;          
+                }
+            },  
+            
+            onReactionClicked(ev){
+                ev.preventDefault();
+                var reaction = u.ancestor(ev.target, '.chat-msg__reaction');
+                console.log('the reaction is :');
+                console.log(reaction.innerHTML);
+                //TODO: processing data 
+                //send stanza using message attaching
+                var extraAttrs = {};
+                var message = u.ancestor(ev.target, '.chat-msg');
+                extraAttrs.reaction = reaction.innerHTML;
+                extraAttrs.repliesTo = message.getAttribute('data-msgid');
+                this.model.sendMessage(reaction.innerHTML, null, extraAttrs);
+                this.model.reactionInProgress = false;
+                const parentNode = u.ancestor(ev.target, '.chat-msg__body');
+                parentNode.getElementsByClassName("chat-msg__reactions")[0].style.opacity = 0;     
+
             },
 
             editLaterMessage () {
