@@ -327,6 +327,7 @@ converse.plugins.add('converse-chatview', {
             events: {
                 'change input.fileupload': 'onFileSelection',
                 'click .chat-msg__action-edit': 'onMessageEditButtonClicked',
+                'click .chat-msg__action-reply': 'onMessageReplyButtonClicked',
                 'click .chatbox-navback': 'showControlBox',
                 'click .close-chatbox-button': 'close',
                 'click .new-msgs-indicator': 'viewUnreadMessages',
@@ -345,6 +346,8 @@ converse.plugins.add('converse-chatview', {
                 'paste .chat-textarea': 'onPaste',
                 'dragover .chat-textarea': 'onDragOver',
                 'drop .chat-textarea': 'onDrop',
+                'mouseover .chat-msg': 'highlightParents',
+                'mouseout .chat-msg' : 'dehighlightParents'
             },
 
             initialize () {
@@ -885,7 +888,15 @@ converse.plugins.add('converse-chatview', {
             async onFormSubmitted (ev) {
                 ev.preventDefault();
                 const textarea = this.el.querySelector('.chat-textarea');
-                const message = textarea.value.trim();
+                let message, extraAttrs;
+                if(this.model.replyInProgress != ''){
+                    extraAttrs = this.model.replyInProgress;
+                    message = textarea.value.trim();
+                    this.model.replyInProgress = '';
+                }else{
+                    message = textarea.value.trim();
+                }
+
                 if (_converse.message_limit && message.length > _converse.message_limit) {
                     return;
                 }
@@ -908,7 +919,7 @@ converse.plugins.add('converse-chatview', {
                 u.addClass('disabled', textarea);
                 textarea.setAttribute('disabled', 'disabled');
                 if (this.parseMessageForCommands(message) ||
-                    await this.model.sendMessage(message, spoiler_hint)) {
+                    await this.model.sendMessage(message, spoiler_hint, extraAttrs)) {
 
                     hint_el.value = '';
                     textarea.value = '';
@@ -1038,6 +1049,11 @@ converse.plugins.add('converse-chatview', {
                       message = this.model.messages.findWhere({'msgid': message_el.getAttribute('data-msgid')});
 
                 const textarea = this.el.querySelector('.chat-textarea');
+
+                if(this.model.replyInProgress){
+                    this.model.replyInProgress = null;
+                }
+
                 if (textarea.value &&
                         (currently_correcting === null || currently_correcting.get('message') !== textarea.value)) {
                     if (! confirm(__("You have an unsent message which will be lost if you continue. Are you sure?"))) {
@@ -1056,7 +1072,100 @@ converse.plugins.add('converse-chatview', {
                     this.insertIntoTextArea('', true, false);
                 }
             },
+            onMessageReplyButtonClicked (ev) {
+                ev.preventDefault();
 
+                const message_el = u.ancestor(ev.target, '.chat-msg'), 
+                message = this.model.messages.findWhere({'msgid': message_el.getAttribute('data-msgid')}); 
+                if(!this.model.replyInProgress || this.model.replyInProgress &&
+                    this.model.replyInProgress.repliesTo != message_el.getAttribute('data-msgid')){
+                        if(message){
+                            this.model.replyInProgress = {
+                                'repliesTo': message_el.getAttribute('data-msgid'),
+                                'parentNodeRef': message_el
+                            };                    
+                        }
+                        u.addClass('replying', message_el);
+                        this.focus(); //setting focus to text area
+                    }
+
+                else{
+                    this.model.replyInProgress = null;
+                    u.removeClass('replying', message_el);
+                }
+
+            },
+            highlightParents(ev) {
+                ev.preventDefault();
+                const message_el = u.ancestor(ev.target, '.chat-msg');
+                u.addClass('discussionTree', message_el);
+                var currentId = message_el.getAttribute('data-msgid');
+                var idParent = message_el.getAttribute('data-parent');
+                var parentRef = document.querySelectorAll(`[data-msgid="${idParent}"`) ? document.querySelectorAll(`[data-msgid="${idParent}"`)[0] : null; //highlighting kids
+                var kids = document.querySelectorAll(`[data-parent="${currentId}"`);
+                for (var i = 0; i < kids.length; i++) {
+                  u.addClass('discussionTreeKids', kids[i]);
+                }
+                u.addClass('discussionTreeParent', parentRef); //drawing tree : first test
+
+                //symbol next to parent first
+                var par = document.getElementsByClassName('chat-content')[0];
+                var parentSpace = document.querySelectorAll(`[data-id="${idParent}"`) ? document.querySelectorAll(`[data-id="${idParent}"`)[0] : null;
+                if (parentSpace && parentSpace.childNodes && parentSpace.childNodes[1]) {
+                  parentSpace.childNodes[1].style.opacity = 1;
+                } 
+
+                //symbols right next to current symbol and kids
+                var currentSpace = document.querySelectorAll(`[data-id="${currentId}"`) ? document.querySelectorAll(`[data-id="${currentId}"`)[1] : null;
+                if (currentSpace && currentSpace.childNodes && currentSpace.childNodes[1]) {
+                  currentSpace.childNodes[1].style.opacity = 1;
+                }
+                for (i = 0; i < kids.length; i++) {
+                  var childId = kids[i].getAttribute('data-msgid');
+                  var childSpace = document.querySelectorAll(`[data-id="${childId}"`) ? document.querySelectorAll(`[data-id="${childId}"`)[2] : null;
+        
+                  if (childSpace && childSpace.childNodes && childSpace.childNodes[1]) {
+                    childSpace.childNodes[1].style.opacity = 1;
+                  }
+                }
+            },
+
+
+            dehighlightParents(ev) {
+                ev.preventDefault();
+                const message_el = u.ancestor(ev.target, '.chat-msg'); 
+                u.removeClass('discussionTree', message_el);
+                var idParent = message_el.getAttribute('data-parent');
+                var currentId= message_el.getAttribute('data-msgid');
+                //dehighlighting kids
+                var kids = document.querySelectorAll(`[data-parent="${currentId}"`);
+                for(var i = 0 ; i < kids.length ; i++){
+                    u.removeClass('discussionTreeKids', kids[i]);
+                }
+                var parentRef = document.querySelectorAll(`[data-msgid="${idParent}"`)? document.querySelectorAll(`[data-msgid="${idParent}"`)[0] : null;
+                u.removeClass('discussionTreeParent', parentRef);
+                var parentSpace = document.querySelectorAll(`[data-id="${idParent}"`)? document.querySelectorAll(`[data-id="${idParent}"`)[0] : null;
+                if(parentSpace && parentSpace.childNodes && parentSpace.childNodes[1]){
+                    parentSpace.childNodes[1].style.opacity = 0;
+                }
+
+                //caret right next to current symbol and kids
+                var currentSpace = document.querySelectorAll(`[data-id="${currentId}"`)? document.querySelectorAll(`[data-id="${currentId}"`)[1] : null;
+                if(currentSpace && currentSpace.childNodes && currentSpace.childNodes[1]){
+                    currentSpace.childNodes[1].style.opacity = 0;
+                }
+                for(i = 0; i < kids.length; i++){
+                    var childId = kids[i].getAttribute('data-msgid');
+                    var childSpace =document.querySelectorAll(`[data-id="${childId}"`)? document.querySelectorAll(`[data-id="${childId}"`)[2] : null;
+                    if(childSpace && childSpace.childNodes && childSpace.childNodes[1]){
+                        childSpace.childNodes[1].style.opacity = 0;
+                    }
+                }
+                // var lineParent = document.getElementById("svgParent");
+                // lineParent.innerHTML ='';
+  
+            },
+            //done adding
             editLaterMessage () {
                 let message;
                 let idx = this.model.messages.findLastIndex('correcting');

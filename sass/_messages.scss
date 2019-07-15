@@ -104,6 +104,58 @@
                 }
             }
 
+            &.replying{
+                &.groupchat  {
+                    background-color: var(--chatroom-correcting-color);
+                }
+                &:not(.groupchat) {
+                    background-color: var(--chat-correcting-color);
+                }
+            }
+            .parentIcon{
+                opacity: 0;
+                font-size: 25px;
+            }
+            .currentIcon{
+                opacity: 0;
+                font-size: 25px;
+                padding-top: 8px; 
+            }
+            .childIcon{
+                opacity: 0;
+                font-size: 25px; 
+                padding-right: 10px; 
+                padding-top: 3px;
+            }
+            &.discussionTree{
+                box-shadow: 3px 3px 5px 2px #ccc;
+                &.groupchat  {
+                    background-color: var(--chatroom-disctree-color);
+                }
+                &:not(.groupchat) {
+                    background-color: var(--chat-disctree-color);
+                }
+            }
+            &.discussionTreeParent{
+                box-shadow: 3px 3px 2px 2px #ccc;
+                &.groupchat  {
+                    background-color: var(--chatroom-disctreeparent-color);;
+                }
+                &:not(.groupchat) {
+                    background-color: var(--chat-disctreeparent-color);;
+                }  
+            }
+
+            &.discussionTreeKids{
+                box-shadow: 3px 3px 8px 2px #ccc;
+                &.groupchat  {
+                    background-color: var(--chatroom-disctreekid-color);
+                }
+                &:not(.groupchat) {
+                    background-color: var(--chat-disctreekid-color);
+                }
+            }
+
             .spoiler {
                 margin-top: 0.5em;
             }
@@ -221,7 +273,7 @@
                 .chat-msg__action {
                     height: var(--message-font-size);
                     font-size: var(--message-font-size);
-                    padding: 0;
+                    padding: 3px;
                     border: none;
                     opacity: 0;
                     background: transparent;

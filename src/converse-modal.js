@@ -95,14 +95,16 @@ converse.plugins.add('converse-modal', {
                         const model = new Backbone.Model({
                             'title': title,
                             'messages': messages,
-                            'type': type
+                            'type': type,
+                            'replyInProgress': replyInProgress
                         })
                         alert = new _converse.Alert({'model': model});
                     } else {
                         alert.model.set({
                             'title': title,
                             'messages': messages,
-                            'type': type
+                            'type': type,
+                            'replyInProgress': replyInProgress,
                         });
                     }
                     alert.show();

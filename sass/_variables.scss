@@ -56,6 +56,10 @@ $mobile_portrait_length: 480px !default;
     --chat-head-color-lighten-50-percent: #e7f7ee; // lighten($green, 50%)
     --chat-head-text-color: white;
     --chat-correcting-color: var(--chat-head-color-lighten-50-percent);
+    --chat-disctree-color: rgba(0, 0 , 0, 0.080);
+    --chat-disctreeparent-color: rgba(0, 0 , 0, 0.140);
+    --chat-disctreekid-color:  rgba(0, 0 , 0, 0.060);
+    
 
     --chat-topic-display: block;
     --chat-info-display: block;
@@ -120,7 +124,10 @@ $mobile_portrait_length: 480px !default;
     --chatroom-correcting-color: #fadfd7; // lighten($red, 30%)
     --chatroom-badge-color: var(--chatroom-head-color);
     --chatroom-badge-hover-color: var(--chatroom-head-color-dark);
-
+    --chatroom-disctree-color: rgba(0, 0 , 0, 0.080);
+    --chatroom-disctreeparent-color: rgba(0, 0 , 0, 0.140);
+    --chatroom-disctreekid-color:  rgba(0, 0 , 0, 0.060);
+    
     --headline-head-color: var(--orange);
     --headline-message-color: #D2842B;
 
