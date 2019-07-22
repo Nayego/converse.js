@@ -1161,8 +1161,6 @@ converse.plugins.add('converse-chatview', {
                         childSpace.childNodes[1].style.opacity = 0;
                     }
                 }
-                // var lineParent = document.getElementById("svgParent");
-                // lineParent.innerHTML ='';
   
             },
             //done adding

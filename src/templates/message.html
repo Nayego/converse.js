@@ -1,13 +1,13 @@
 <div class="message chat-msg {{{o.type}}} {[ if (o.is_me_message) { ]} chat-msg--action {[ } ]} {{{o.extra_classes}}}"
         data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}" data-parent="{{{o.repliesTo}}}">
         <div class="parentSpace" data-id="{{{o.msgid}}}">
-             <i class="fas fa-level-up-alt fa-rotate-90 parentIcon"></i>
+             <i class="fas fa-level-up-alt fa-rotate-90 parentIcon" style="font-size: 20px; opacity: 0;"></i>
         </div>
         <div class="currentSpace" data-id="{{{o.msgid}}}">
-            <i class="fas fa-level-up-alt fa-rotate-90 currentIcon"></i>
+            <i class="fas fa-level-up-alt fa-rotate-90 currentIcon" style="font-size: 20px; padding-left: 5px; opacity: 0;"></i>
         </div>
         <div class="childSpace" data-id="{{{o.msgid}}}">
-            <i class="fas fa-level-up-alt fa-rotate-90 childIcon"></i>
+            <i class="fas fa-level-up-alt fa-rotate-90 childIcon" style="font-size: 20px; opacity: 0; padding-right: 6px; padding-top: 6px;"></i>
         </div>
         {[ if (o.type !== 'headline' && !o.is_me_message) { ]}
 

@@ -684,7 +684,6 @@ converse.plugins.add('converse-chatboxes', {
                 //XEP-0367 : Message attaching 
                 if(message.get('repliesTo')){
                     stanza.c('attach-to', {'id': message.get('repliesTo'), 'xmlns': 'urn:xmpp:message-attaching:1'}).root();
-                    console.log(stanza);
                 }
                 return stanza;
             },
