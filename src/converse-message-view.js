@@ -79,6 +79,9 @@ converse.plugins.add('converse-message-view', {
 
 
         _converse.MessageView = _converse.ViewWithAvatar.extend({
+
+            savedReactions: [],
+
             events: {
                 'click .chat-msg__edit-modal': 'showMessageVersionsModal'
             },
@@ -135,6 +138,7 @@ converse.plugins.add('converse-message-view', {
                 if (is_followup) {
                     u.addClass('chat-msg--followup', this.el);
                 }
+
                 return this.el;
             },
 
@@ -173,6 +177,8 @@ converse.plugins.add('converse-message-view', {
                     () => u.removeClass('onload', this.el),
                     {'once': true}
                 );
+                
+                    
                 u.addClass('onload', this.el);
             },
 
@@ -189,7 +195,10 @@ converse.plugins.add('converse-message-view', {
                 const time = dayjs(this.model.get('time'));
                 const role = this.model.vcard ? this.model.vcard.get('role') : null;
                 const roles = role ? role.split(',') : [];
-
+                if(this.model.get('reactsTo')){
+                    this.renderReaction();
+                    return;
+                 }
                 const msg = u.stringToElement(tpl_message(
                     Object.assign(
                         this.model.toJSON(), {
@@ -205,7 +214,6 @@ converse.plugins.add('converse-message-view', {
                         'username': this.model.getDisplayName()
                     })
                 ));
-
                 const url = this.model.get('oob_url');
                 if (url) {
                     msg.querySelector('.chat-msg__media').innerHTML = _.flow(
@@ -233,6 +241,20 @@ converse.plugins.add('converse-message-view', {
                 const promise = u.renderImageURLs(_converse, msg_content);
                 if (this.model.get('type') !== 'headline') {
                     this.renderAvatar(msg);
+                }
+                //re-rendering reactions 
+                var savedId = this.model.get('msgid');
+                if(this.savedReactions.length > 0)
+                {
+                    var savedLength = this.savedReactions.length;
+                    var currentThis = this.model;
+                    for(var i = 0; i < savedLength ; i++){
+                        this.model = this.savedReactions[i];
+                        if(this.model.get('reactsTo')==savedId){
+                            this.renderReaction(msg);
+                        }
+                    }
+                    this.model = currentThis;
                 }
                 await promise;
                 this.replaceElement(msg);
@@ -293,6 +315,93 @@ converse.plugins.add('converse-message-view', {
                             'from': from,
                             'isodate': isodate
                         })));
+            },
+
+            renderReaction(msg){
+
+                var message = document.querySelectorAll(`[data-msgid="${this.model.get('reactsTo')}"`)? 
+                            document.querySelectorAll(`[data-msgid="${this.model.get('reactsTo')}"`): null ;
+
+                //reaction is added to independent div 'msg'
+                if(msg){    
+                    var body = msg.querySelectorAll('.chat-msg__body');
+                    if(body != null && body != undefined && body.length > 0){
+                            var prevReact =  body[0].querySelectorAll('#'+this.model.get('message'));
+                            if(prevReact == null || prevReact == undefined || prevReact.length == 0)
+                            {
+                                var reaction = document.createElement('div');
+                                reaction.id = this.model.get('message');
+                                reaction.className = "react";
+                                if(reaction.getAttribute('data-reactionid') == null || reaction.getAttribute('data-reactionid') == undefined){
+                                    reaction.setAttribute('data-reactionid', this.model.get('msgid'));
+                                }
+                                else{
+                                    reaction.setAttribute('data-reactionid', reaction.getAttribute('data-reactionid')+' '+this.model.get('msgid'));
+                                }
+                                reaction.innerHTML = this.model.get('message') +" +";
+                                var counter = document.createElement('span');
+                                counter.classList.add(this.model.get('msgid'));
+                                counter.innerHTML = '1';
+                                reaction.appendChild(counter);
+                                var refNode = body[0].getElementsByClassName("chat-msg__message")[0];
+                                body[0].insertBefore(reaction, refNode.nextSibling);
+                            } else {
+                                var counter = prevReact[0].getElementsByTagName('span')[0];
+                                if(counter.classList.contains(this.model.get('msgid'))){
+                                    return; //reaction already rendered
+                                }
+                                counter.classList.add(this.model.get('msgid'));
+                                counter.innerHTML = parseInt(counter.innerHTML)+1;
+                            }
+                            return;               
+                    }
+                }
+
+                //reaction is added to document directly
+                if(document.querySelectorAll(`[data-reactionid="${this.model.get('msgid')}"`)!= null 
+                    && document.querySelectorAll(`[data-reactionid="${this.model.get('msgid')}"`)!= undefined
+                     && document.querySelectorAll(`[data-reactionid="${this.model.get('msgid')}"`).length > 0){
+                    return; //reaction aleady rendered : avoiding duplicates
+                }
+                var exists = false;
+                for(var i = 0; i < this.savedReactions.length; i++){
+                    if(this.savedReactions[i].get('msgid')==this.model.get('msg id')){
+                        exists = true;
+                        break;
+                    }
+                }
+                if(!exists){
+                    this.savedReactions.push(this.model);
+                }
+                if(message != null && message != undefined && message.length > 0){
+                    var body = message[0].querySelectorAll('.chat-msg__body');
+                    if(body != null && body != undefined && body.length > 0){
+                            var prevReact =  body[0].querySelectorAll('#'+this.model.get('message'));
+                            if(prevReact == null || prevReact == undefined || prevReact.length == 0)
+                            {
+                                var reaction = document.createElement('div');
+                                reaction.id = this.model.get('message');
+                                reaction.className = "react";
+                                reaction.setAttribute('data-reactionid', this.model.get('msgid'));
+                                reaction.innerHTML = this.model.get('message') +" +";
+                                var counter = document.createElement('span');
+                                counter.classList.add(this.model.get('msgid'));
+                                counter.innerHTML = '1';
+                                reaction.appendChild(counter);
+                                var refNode = body[0].getElementsByClassName("chat-msg__message")[0];
+                                body[0].insertBefore(reaction, refNode.nextSibling);
+                            } else {
+                                var counter = prevReact[0].getElementsByTagName('span')[0];
+                                if(counter.classList.contains(this.model.get('msgid'))){
+                                    return;
+                                }
+                                counter.classList.add(this.model.get('msgid'));
+                                counter.innerHTML = parseInt(counter.innerHTML)+1;
+                            }
+                    }
+                }else{
+                    return; //message to which the reaction is destined doesn't exist on document
+                }
             },
 
             renderFileUploadProgresBar () {

@@ -218,11 +218,15 @@
             }
 
             .chat-msg__actions {
+                display: flex;
+                flex-direction: row-reverse;
                 .chat-msg__action {
+                    box-sizing: content-box;
+                    width: 100%;
+                    box-shadow: 0 8px 6px -6px rgb(167, 163, 163);
                     height: var(--message-font-size);
                     font-size: var(--message-font-size);
-                    padding: 3px;
-                    border: none;
+                    padding: 5px;
                     opacity: 0;
                     background: transparent;
                     cursor: pointer;
@@ -237,7 +241,6 @@
                 background: white;
                 flex-direction: row-reverse;
                 height: 25px;
-                opacity: 0;
                 .chat-msg__reaction {
                     height: var(--message-font-size);
                     font-size: var(--message-font-size);
@@ -258,7 +261,7 @@
                 min-height: var(--message-avatar-height);
                 min-width: var(--message-avatar-width);
             }
-
+            
             .chat-msg__heading {
                 width: 100%;
                 margin-top: 0.5em;

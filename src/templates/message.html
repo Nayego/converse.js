@@ -1,5 +1,5 @@
 <div class="message chat-msg {{{o.type}}}{[ if (o.is_me_message) { ]} chat-msg--action {[ } ]}{{{o.extra_classes}}}"
-        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}">
+        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}" data-reaction="{{{o.reactsTo}}}">
     {[ if (o.type !== 'headline' && !o.is_me_message) { ]}
     <canvas class="avatar chat-msg__avatar" height="36" width="36"></canvas>
     {[ } ]}
@@ -28,13 +28,6 @@
                     {[ if (o.is_single_emoji) { ]} chat-msg__text--larger{[ } ]}
                     {[ if (o.is_spoiler) { ]} spoiler collapsed{[ } ]}"><!-- message gets added here via renderMessage --></div>
                 <div class="chat-msg__media"></div>
-            </div>
-            <div class="chat-msg__reactions">
-                <span class="chat-msg__reaction" id="like">&#128077;</span>
-                <span class="chat-msg__reaction" id="clap">&#128079;</span>
-                <span class="chat-msg__reaction" id="heart">&#10084;</span>
-                <span class="chat-msg__reaction" id="light-bulb">&#128161;</span>
-                <span class="chat-msg__reaction" id="thinking-face">&#129300;</span>
             </div>
             {[ if (o.edited) { ]} <i title="{{{o.__('This message has been edited')}}}" class="fa fa-edit chat-msg__edit-modal"></i> {[ } ]}
             {[ if (o.type !== 'headline' && o.sender === 'me') { ]}

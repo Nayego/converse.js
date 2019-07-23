@@ -19,7 +19,7 @@ Strophe.addNamespace('MESSAGE_CORRECT', 'urn:xmpp:message-correct:0');
 Strophe.addNamespace('RECEIPTS', 'urn:xmpp:receipts');
 Strophe.addNamespace('REFERENCE', 'urn:xmpp:reference:0');
 Strophe.addNamespace('MARKERS', 'urn:xmpp:chat-markers:0');
-
+Strophe.addNamespace('REACTION', 'urn:xmpp:reactions:0');
 
 converse.plugins.add('converse-chatboxes', {
 
@@ -478,6 +478,20 @@ converse.plugins.add('converse-chatboxes', {
             },
 
             /**
+             * If the passed in `message` stanza contains a
+             * `<reaction>` element, return its `id` attribute.
+             * @private
+             * @method _converse.ChatBox#getReplaceId
+             * @param { XMLElement } stanza
+             */
+            getReactedToId (stanza) {
+                const el = sizzle(`reactions[xmlns="${Strophe.NS.REACTION}"]`, stanza).pop();
+                if (el) {
+                    return el.getAttribute('id');
+                }
+            },
+
+            /**
              * Determine whether the passed in message attributes represent a
              * message which corrects a previously received message, or an
              * older message which has already been corrected.
@@ -638,12 +652,15 @@ converse.plugins.add('converse-chatboxes', {
              */
             createMessageStanza (message) {
                 const stanza = $msg({
-                        'from': _converse.connection.jid,
-                        'to': this.get('jid'),
-                        'type': this.get('message_type'),
-                        'id': message.get('edited') && _converse.connection.getUniqueId() || message.get('msgid'),
-                    }).c('body').t(message.get('message')).up()
-                      .c(_converse.ACTIVE, {'xmlns': Strophe.NS.CHATSTATES}).root();
+                    'from': _converse.connection.jid,
+                    'to': this.get('jid'),
+                    'type': this.get('message_type'),
+                    'id': message.get('edited') && _converse.connection.getUniqueId() || message.get('msgid'),
+                }).c(_converse.ACTIVE, {'xmlns': Strophe.NS.CHATSTATES}).root();
+
+                if(!message.get('reactsTo')){
+                    stanza.c('body').t(message.get('message')).up();
+                }
 
                 if (message.get('type') === 'chat') {
                     stanza.c('request', {'xmlns': Strophe.NS.RECEIPTS}).root();
@@ -680,10 +697,14 @@ converse.plugins.add('converse-chatboxes', {
                 if (message.get('origin_id')) {
                     stanza.c('origin-id', {'xmlns': Strophe.NS.SID, 'id': message.get('origin_id')}).root();
                 }
+                //XEP - MESSAGE REACTIONS
+                if(message.get('reactsTo')){
+                    stanza.c('reactions', {'id': message.get('reactsTo'), 'xmlns': Strophe.NS.REACTION}).c('reaction').t(message.get('message')).root();
+                }
                 return stanza;
             },
 
-            getOutgoingMessageAttributes (text, spoiler_hint) {
+            getOutgoingMessageAttributes (text, spoiler_hint, parentMsg) {
                 const is_spoiler = this.get('composing_spoiler');
                 const origin_id = _converse.connection.getUniqueId();
                 return {
@@ -696,6 +717,7 @@ converse.plugins.add('converse-chatboxes', {
                     'from': _converse.bare_jid,
                     'is_single_emoji': text ? u.isSingleEmoji(text) : false,
                     'sender': 'me',
+                    'reactsTo': parentMsg,
                     'time': (new Date()).toISOString(),
                     'message': text ? u.httpToGeoUri(u.shortnameToUnicode(text), _converse) : undefined,
                     'is_spoiler': is_spoiler,
@@ -712,12 +734,18 @@ converse.plugins.add('converse-chatboxes', {
              * @memberOf _converse.ChatBox
              * @param {String} text - The chat message text
              * @param {String} spoiler_hint - An optional hint, if the message being sent is a spoiler
+             * @param {Object} extraAttrs - extra attributes, in case a message is a reply to a previous message
+
              * @example
              * const chat = _converse.api.chats.get('buddy1@example.com');
              * chat.sendMessage('hello world');
              */
-            sendMessage (text, spoiler_hint) {
-                const attrs = this.getOutgoingMessageAttributes(text, spoiler_hint);
+            sendMessage (text, spoiler_hint, extraAttrs) {
+                var argReaction = null;
+                if(extraAttrs && extraAttrs.reactsTo){
+                    argReaction = extraAttrs.reactsTo;
+                }
+                const attrs = this.getOutgoingMessageAttributes(text, spoiler_hint, argReaction);
                 let message = this.messages.findWhere('correcting')
                 if (message) {
                     const older_versions = message.get('older_versions') || {};
@@ -733,6 +761,11 @@ converse.plugins.add('converse-chatboxes', {
                     });
                 } else {
                     message = this.messages.create(attrs);
+                }
+                if(extraAttrs && extraAttrs.reactsTo){
+                    message.save({
+                        reactsTo: extraAttrs.reactsTo
+                    });
                 }
                 _converse.api.send(this.createMessageStanza(message));
                 return true;
@@ -868,6 +901,21 @@ converse.plugins.add('converse-chatboxes', {
                 }
             },
 
+            getReaction (stanza) {
+                /* Given a message stanza -empty body, return the reaction contained in it.
+                 */
+                const type = stanza.getAttribute('type');
+                if (type === 'error') {
+                    return this.getErrorMessage(stanza);
+                } else {
+                    const body = stanza.querySelector('reaction');
+                    if (body) {
+                        return body.textContent.trim();
+                    }
+                }
+            },
+
+
 
             /**
              * Parses a passed in message stanza and returns an object
@@ -882,7 +930,7 @@ converse.plugins.add('converse-chatboxes', {
             getMessageAttributesFromStanza (stanza, original_stanza) {
                 const spoiler = sizzle(`spoiler[xmlns="${Strophe.NS.SPOILER}"]`, original_stanza).pop();
                 const delay = sizzle(`delay[xmlns="${Strophe.NS.DELAY}"]`, original_stanza).pop();
-                const text = this.getMessageBody(stanza) || undefined;
+                const text = this.getMessageBody(stanza) || this.getReaction(stanza) || undefined;
                 const chat_state = stanza.getElementsByTagName(_converse.COMPOSING).length && _converse.COMPOSING ||
                             stanza.getElementsByTagName(_converse.PAUSED).length && _converse.PAUSED ||
                             stanza.getElementsByTagName(_converse.INACTIVE).length && _converse.INACTIVE ||
@@ -898,6 +946,7 @@ converse.plugins.add('converse-chatboxes', {
                     'is_spoiler': !_.isNil(spoiler),
                     'is_single_emoji': text ? u.isSingleEmoji(text) : false,
                     'message': text,
+                    'reactsTo': this.getReactedToId(stanza)? this.getReactedToId(stanza) : undefined,
                     'msgid': msgid,
                     'references': this.getReferencesFromStanza(stanza),
                     'subject': _.propertyOf(stanza.querySelector('subject'))('textContent'),
@@ -935,6 +984,7 @@ converse.plugins.add('converse-chatboxes', {
                 attrs['id'] = attrs['origin_id'] ||
                     attrs[`stanza_id ${attrs.from}`] ||
                     _converse.connection.getUniqueId();
+                
                 return attrs;
             },
 
