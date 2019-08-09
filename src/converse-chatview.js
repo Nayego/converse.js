@@ -887,19 +887,19 @@ converse.plugins.add('converse-chatview', {
             async onFormSubmitted (ev) {
                 ev.preventDefault();
                 const textarea = this.el.querySelector('.chat-textarea');
-                let message, extraAttrs;
+                let message_text, extraAttrs;
                 if(this.model.replyInProgress != ''){
                     extraAttrs = this.model.replyInProgress;
-                    message = textarea.value.trim();
+                    message_text = textarea.value.trim();
                     this.model.replyInProgress = '';
                 }else{
-                    message = textarea.value.trim();
+                    message_text= textarea.value.trim();
                 }
 
                 if (_converse.message_limit && message.length > _converse.message_limit) {
                     return;
                 }
-                if (!message.replace(/\s/g, '').length) {
+                if (!message_text.replace(/\s/g, '').length) {
                     return;
                 }
                 if (!_converse.connection.authenticated) {
@@ -917,11 +917,9 @@ converse.plugins.add('converse-chatview', {
                 }
                 u.addClass('disabled', textarea);
                 textarea.setAttribute('disabled', 'disabled');
-                // if (this.parseMessageForCommands(message) ||
-                //     await this.model.sendMessage(message, spoiler_hint, extraAttrs)) {
-
+                
                 const is_command = this.parseMessageForCommands(message_text);
-                const message = is_command ? null : await this.model.sendMessage(message_text, spoiler_hint);
+                const message = is_command ? null : await this.model.sendMessage(message_text, spoiler_hint, extraAttrs);
                 if (is_command || message) {
                     hint_el.value = '';
                     textarea.value = '';
