@@ -1,5 +1,5 @@
 <div class="message chat-msg {{{o.type}}}{[ if (o.is_me_message) { ]} chat-msg--action {[ } ]}{{{o.extra_classes}}}"
-        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}">
+        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}" data-reaction="{{{o.reactsTo}}}">
     {[ if (o.type !== 'headline' && !o.is_me_message) { ]}
     <canvas class="avatar chat-msg__avatar" height="36" width="36"></canvas>
     {[ } ]}
@@ -29,13 +29,18 @@
                     {[ if (o.is_spoiler) { ]} spoiler collapsed{[ } ]}"><!-- message gets added here via renderMessage --></div>
                 <div class="chat-msg__media"></div>
             </div>
-            {[ if (o.received && !o.is_me_message && !o.is_groupchat_message) { ]} <span class="fa fa-check chat-msg__receipt"></span> {[ } ]}
             {[ if (o.edited) { ]} <i title="{{{o.__('This message has been edited')}}}" class="fa fa-edit chat-msg__edit-modal"></i> {[ } ]}
             {[ if (o.type !== 'headline' && o.sender === 'me') { ]}
                 <div class="chat-msg__actions">
                     <button class="chat-msg__action chat-msg__action-edit fa fa-pencil-alt" title="{{{o.__('Edit this message')}}}"></button>
                 </div>
             {[ } ]}
+            <div class="chat-msg__actions">
+                <button class="chat-msg__action chat-msg__action-react far fa-smile" title="{{{o.__('React to this message')}}}"></button>
+            </div>
+            {[ if (o.received && !o.is_me_message && !o.is_groupchat_message) { ]} <span class="fa fa-check chat-msg__receipt"></span> {[ } ]}
+
         </div>
+        <div class="chat-msg__reacts"></div>
     </div>
 </div>

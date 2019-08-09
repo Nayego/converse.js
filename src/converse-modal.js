@@ -98,7 +98,8 @@ converse.plugins.add('converse-modal', {
                         alert.model.set({
                             'title': title,
                             'messages': messages,
-                            'type': type
+                            'type': type,
+                            'reactionInProgress': reactionInProgress
                         });
                     }
                     alert.show();

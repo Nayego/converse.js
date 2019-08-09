@@ -220,11 +220,15 @@
             }
 
             .chat-msg__actions {
+                display: flex;
+                flex-direction: row-reverse;
                 .chat-msg__action {
+                    box-sizing: content-box;
+                    width: 100%;
+                    box-shadow: 0 8px 6px -6px rgb(167, 163, 163);
                     height: var(--message-font-size);
                     font-size: var(--message-font-size);
-                    padding: 0;
-                    border: none;
+                    padding: 5px;
                     opacity: 0;
                     background: transparent;
                     cursor: pointer;
@@ -234,6 +238,48 @@
                 }
             }
 
+            .chat-msg__reactions{
+                display: flex;
+                background: white;
+                flex-direction: row-reverse;
+                height: 25px;
+                .chat-msg__reaction {
+                    height: var(--message-font-size);
+                    font-size: var(--message-font-size);
+                    padding: 3px;
+                    border: none;
+                    cursor: pointer;
+                    &:focus {
+                        display: block;
+                    }
+                }
+            }
+
+            .chat-msg__reacts{
+                display: flex;
+                flex: 1;
+                flex-wrap: wrap;
+                padding: 0 6px;
+                .react {
+                    list-style-type: none;
+                    background-color: rgba(var(--movim-font), 0.05);
+                    padding: 0 5px;
+                    border-radius: 0.2rem;
+                    line-height: 25px;
+                    font-size: calc(var(--font-size) *0.8);
+                    margin: 0px 2px;
+                    display: inline-flex;
+                    z-index: 1;
+                    border: solid 1px transparent;
+                    border-color: gray;
+                    box-sizing: border-box;
+                    &:focus {
+                        display: block;
+                    }
+                }
+            }
+
+
             .chat-msg__avatar {
                 margin-top: 0.5em;
                 vertical-align: middle;
@@ -242,7 +288,7 @@
                 min-height: var(--message-avatar-height);
                 min-width: var(--message-avatar-width);
             }
-
+            
             .chat-msg__heading {
                 width: 100%;
                 margin-top: 0.5em;

@@ -327,6 +327,8 @@ converse.plugins.add('converse-chatview', {
             events: {
                 'change input.fileupload': 'onFileSelection',
                 'click .chat-msg__action-edit': 'onMessageEditButtonClicked',
+                'click .chat-msg__action-react': 'onMessageReactButtonClicked',
+                'click .chat-msg__reaction': 'onReactionClicked',
                 'click .chatbox-navback': 'showControlBox',
                 'click .close-chatbox-button': 'close',
                 'click .new-msgs-indicator': 'viewUnreadMessages',
@@ -1055,6 +1057,95 @@ converse.plugins.add('converse-chatview', {
                     message.save('correcting', false);
                     this.insertIntoTextArea('', true, false);
                 }
+            },
+              
+            onMessageReactButtonClicked (ev) {
+                ev.preventDefault();
+                const parentNode = u.ancestor(ev.target, '.chat-msg__body');
+                if(!this.model.reactionInProgress){
+                    this.model.reactionInProgress = true;
+                    if(parentNode.getElementsByClassName('chat-msg__reactions') != undefined && parentNode.getElementsByClassName('chat-msg__reactions') != null 
+                        &&parentNode.getElementsByClassName('chat-msg__reactions').length > 0 ){
+                        return;
+                    }
+                    var refNode = (parentNode.getElementsByClassName("chat-msg__edit-modal")!=undefined && parentNode.getElementsByClassName("chat-msg__edit-modal")!= null &&parentNode.getElementsByClassName("chat-msg__edit-modal").length > 0 ) ? parentNode.getElementsByClassName("chat-msg__edit-modal")[0] :   parentNode.getElementsByClassName("chat-msg__actions")[0] ;
+                    var reactions = document.createElement('div');
+                    reactions.className ="chat-msg__reactions";
+
+                    var likeReaction = document.createElement('span'); 
+                    likeReaction.className ="chat-msg__reaction";
+                    likeReaction.innerHTML = "&#128077;";
+
+                    var clapReaction = document.createElement('span'); 
+                    clapReaction.className ="chat-msg__reaction";
+                    clapReaction.innerHTML = "&#128079;"
+
+                    var heartReaction = document.createElement('span'); 
+                    heartReaction.className ="chat-msg__reaction";
+                    heartReaction.innerHTML = "&#10084;"
+
+                    var lightBulbReaction = document.createElement('span'); 
+                    lightBulbReaction.className ="chat-msg__reaction";
+                    lightBulbReaction.innerHTML = "&#128161;"
+
+                    var doubtReaction = document.createElement('span'); 
+                    doubtReaction.className ="chat-msg__reaction";
+                    doubtReaction.innerHTML = "&#129300;"
+
+                    reactions.appendChild(likeReaction);
+                    reactions.appendChild(clapReaction);
+                    reactions.appendChild(heartReaction);
+                    reactions.appendChild(lightBulbReaction);
+                    reactions.appendChild(doubtReaction);
+
+                    refNode = (parentNode.getElementsByClassName('react')!= undefined && parentNode.getElementsByClassName('react')!= null 
+                            && parentNode.getElementsByClassName('react').length > 0) ? 
+                            parentNode.getElementsByClassName('react')[parentNode.getElementsByClassName('react').length -1] 
+                            : parentNode.getElementsByClassName("chat-msg__message")[0];
+                    parentNode.insertBefore(reactions, refNode.nextSibling);
+                    parentNode.getElementsByClassName("chat-msg__reactions")[0].style.opacity = 1;    
+                    for(var i = 0; i < 5; i++){
+                        parentNode.getElementsByClassName("chat-msg__reaction")[i].style.cursor = 'pointer';          
+                    }              
+                }
+                else{
+                    this.model.reactionInProgress = false;
+                    //remove all other reaction selectors if already displayed
+                    var contentNode = u.ancestor(ev.target, '.chat-content');
+                    if(contentNode.getElementsByClassName("chat-msg__reactions")!=undefined && contentNode.getElementsByClassName("chat-msg__reactions")!= null 
+                        &&contentNode.getElementsByClassName("chat-msg__reactions").length > 0){
+                            var lengthSelectors = contentNode.getElementsByClassName("chat-msg__reactions").length;
+                            for(var cmp = 0 ; cmp < lengthSelectors; cmp ++){
+                                var curr = contentNode.getElementsByClassName("chat-msg__reactions")[0];
+                                curr.parentNode.removeChild(curr);
+                            }
+                    }
+                    if(parentNode.getElementsByClassName("chat-msg__reaction") != undefined && parentNode.getElementsByClassName("chat-msg__reaction") !=null
+                        && parentNode.getElementsByClassName("chat-msg__reaction").length >= 5){
+                            parentNode.getElementsByClassName("chat-msg__reaction")[0].style.cursor = 'default';          
+                            parentNode.getElementsByClassName("chat-msg__reaction")[1].style.cursor = 'default';          
+                            parentNode.getElementsByClassName("chat-msg__reaction")[2].style.cursor = 'default';          
+                            parentNode.getElementsByClassName("chat-msg__reaction")[3].style.cursor = 'default';          
+                            parentNode.getElementsByClassName("chat-msg__reaction")[4].style.cursor = 'default';          
+                        }
+                  }
+            },  
+            
+            onReactionClicked(ev){
+                ev.preventDefault();
+                var reaction = u.ancestor(ev.target, '.chat-msg__reaction');
+                const parentNode = u.ancestor(ev.target, '.chat-msg__body');
+                if(parentNode.getElementsByClassName("chat-msg__reactions")[0].style.opacity == 0){
+                    return;  
+                }
+                var extraAttrs = {};
+                var message = u.ancestor(ev.target, '.chat-msg');
+                extraAttrs.reaction = reaction.innerHTML;
+                extraAttrs.reactsTo = message.getAttribute('data-msgid');
+                this.model.sendMessage(extraAttrs.reaction, null, extraAttrs);
+                this.model.reactionInProgress = false;
+                var reactions = u.ancestor(ev.target, '.chat-msg__reactions');
+                reactions.parentNode.removeChild(reactions); 
             },
 
             editLaterMessage () {

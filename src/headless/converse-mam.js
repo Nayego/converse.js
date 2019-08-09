@@ -74,39 +74,20 @@ converse.plugins.add('converse-mam', {
                     return;
                 }
                 const most_recent_msg = this.getMostRecentMessage();
-                if (most_recent_msg) {
+
+                if (!most_recent_msg) {
+                    this.fetchArchivedMessages();
+                } else {
                     const stanza_id = most_recent_msg.get(`stanza_id ${this.get('jid')}`);
                     if (stanza_id) {
-                        this.fetchArchivedMessages({'after': stanza_id}, 'forwards');
+                        this.fetchArchivedMessages({'after': stanza_id});
                     } else {
-                        this.fetchArchivedMessages({'start': most_recent_msg.get('time')}, 'forwards');
+                        this.fetchArchivedMessages({'start': most_recent_msg.get('time')});
                     }
-                } else {
-                    this.fetchArchivedMessages({'before': ''});
                 }
             },
 
-            /**
-             * Fetch XEP-0313 archived messages based on the passed in criteria.
-             * @private
-             * @param { Object } options
-             * @param { integer } [options.max] - The maxinum number of items to return.
-             *  Defaults to "archived_messages_page_size"
-             * @param { string } [options.after] - The XEP-0359 stanza ID of a message
-             *  after which messages should be returned. Implies forward paging.
-             * @param { string } [options.before] - The XEP-0359 stanza ID of a message
-             *  before which messages should be returned. Implies backward paging.
-             * @param { string } [options.end] - A date string in ISO-8601 format,
-             *  before which messages should be returned. Implies backward paging.
-             * @param { string } [options.start] - A date string in ISO-8601 format,
-             *  after which messages should be returned. Implies forward paging.
-             * @param { string } [options.with] - The JID of the entity with
-             *  which messages were exchanged.
-             * @param { boolean } [page] - Whether this function should recursively
-             *  page through the entire result set if a limited number of results
-             *  were returned.
-             */
-            async fetchArchivedMessages (options={}, page) {
+            async fetchArchivedMessages (options) {
                 if (this.disable_mam) {
                     return;
                 }
@@ -115,30 +96,30 @@ converse.plugins.add('converse-mam', {
                 if (!(await _converse.api.disco.supports(Strophe.NS.MAM, mam_jid))) {
                     return;
                 }
-                const message_handler = is_groupchat ?
-                    this.onMessage.bind(this) :
-                    _converse.chatboxes.onMessage.bind(_converse.chatboxes);
-
+                let message_handler;
+                if (is_groupchat) {
+                    message_handler = this.onMessage.bind(this);
+                } else {
+                    message_handler = _converse.chatboxes.onMessage.bind(_converse.chatboxes)
+                }
                 const query = Object.assign({
                         'groupchat': is_groupchat,
+                        'before': '', // Page backwards from the most recent message
                         'max': _converse.archived_messages_page_size,
                         'with': this.get('jid'),
                     }, options);
-
                 const result = await _converse.api.archive.query(query);
                 result.messages.forEach(message_handler);
 
-                if (page && result.rsm) {
-                    if (page === 'forwards') {
-                        options = result.rsm.next(_converse.archived_messages_page_size, options.before);
-                    } else if (page === 'backwards') {
-                        options = result.rsm.previous(_converse.archived_messages_page_size, options.after);
+                const catching_up = query.before || query.after;
+                if (result.rsm) {
+                    if (catching_up) {
+                        return this.fetchArchivedMessages(result.rsm.previous(_converse.archived_messages_page_size));
+                    } else {
+                        // TODO: Add a special kind of message which will
+                        // render as a link to fetch further messages, either
+                        // to fetch older messages or to fill in a gap.
                     }
-                    return this.fetchArchivedMessages(options, page);
-                } else {
-                    // TODO: Add a special kind of message which will
-                    // render as a link to fetch further messages, either
-                    // to fetch older messages or to fill in a gap.
                 }
             },
 
@@ -168,7 +149,7 @@ converse.plugins.add('converse-mam', {
                         this.get('mam_initialized')) {
                     return;
                 }
-                this.fetchNewestMessages();
+                this.fetchArchivedMessages();
                 this.save({'mam_initialized': true});
             }
         });
@@ -512,13 +493,12 @@ converse.plugins.add('converse-mam', {
                         _converse.log(e, Strophe.LogLevel.ERROR);
                     }
                     _converse.connection.deleteHandler(message_handler);
-
                     const fin = iq_result && sizzle(`fin[xmlns="${Strophe.NS.MAM}"]`, iq_result).pop();
                     if (fin && [null, 'false'].includes(fin.getAttribute('complete'))) {
                         const set = sizzle(`set[xmlns="${Strophe.NS.RSM}"]`, fin).pop();
                         if (set) {
                             rsm = new _converse.RSM({'xml': set});
-                            Object.assign(rsm, Object.assign(pick(options, [...MAM_ATTRIBUTES, ..._converse.RSM_ATTRIBUTES]), rsm));
+                            Object.assign(rsm, pick(options, [...MAM_ATTRIBUTES, ..._converse.RSM_ATTRIBUTES]));
                         }
                     }
                     return { messages, rsm }
