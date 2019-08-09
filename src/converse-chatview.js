@@ -251,13 +251,13 @@ converse.plugins.add('converse-chatview', {
                     '_converse': _converse,
                     'allow_contact_removal': _converse.allow_contact_removal,
                     'display_name': this.model.getDisplayName(),
-                    'is_roster_contact': !_.isUndefined(this.model.contact),
+                    'is_roster_contact': this.model.contact !== undefined,
                     'utils': u
                 }));
             },
 
             registerContactEventHandlers () {
-                if (!_.isUndefined(this.model.contact)) {
+                if (this.model.contact !== undefined) {
                     this.model.contact.on('change', this.render, this);
                     this.model.contact.vcard.on('change', this.render, this);
                     this.model.contact.on('destroy', () => {
@@ -365,7 +365,7 @@ converse.plugins.add('converse-chatview', {
                 this.render();
                 this.updateAfterMessagesFetched();
                 /**
-                 * Triggered once the _converse.ChatBoxView has been initialized
+                 * Triggered once the {@link _converse.ChatBoxView} has been initialized
                  * @event _converse#chatBoxInitialized
                  * @type { _converse.ChatBoxView | _converse.HeadlinesBoxView }
                  * @example _converse.api.listen.on('chatBoxInitialized', view => { ... });
@@ -449,7 +449,7 @@ converse.plugins.add('converse-chatview', {
 
             showUserDetailsModal (ev) {
                 ev.preventDefault();
-                if (_.isUndefined(this.user_details_modal)) {
+                if (this.user_details_modal === undefined) {
                     this.user_details_modal = new _converse.UserDetailsModal({model: this.model});
                 }
                 this.user_details_modal.show(ev);
@@ -520,7 +520,7 @@ converse.plugins.add('converse-chatview', {
                 this.heading.render();
                 this.heading.chatview = this;
 
-                if (!_.isUndefined(this.model.contact)) {
+                if (this.model.contact !== undefined) {
                     this.model.contact.on('destroy', this.heading.render, this);
                 }
                 const flyout = this.el.querySelector('.flyout');
@@ -591,7 +591,7 @@ converse.plugins.add('converse-chatview', {
             },
 
             addSpinner (append=false) {
-                if (_.isNull(this.el.querySelector('.spinner'))) {
+                if (this.el.querySelector('.spinner') === null) {
                     if (append) {
                         this.content.insertAdjacentHTML('beforeend', tpl_spinner());
                         this.scrollDown();
@@ -617,14 +617,13 @@ converse.plugins.add('converse-chatview', {
              *      which specifies its creation date.
              */
             insertDayIndicator (next_msg_el) {
-                const prev_msg_el = u.getPreviousElement(next_msg_el, ".message:not(.chat-state-notification)"),
-                      prev_msg_date = _.isNull(prev_msg_el) ? null : prev_msg_el.getAttribute('data-isodate'),
-                      next_msg_date = next_msg_el.getAttribute('data-isodate');
-
-                if (_.isNull(prev_msg_date) && _.isNull(next_msg_date)) {
+                const prev_msg_el = u.getPreviousElement(next_msg_el, ".message:not(.chat-state-notification)");
+                const prev_msg_date = (prev_msg_el === null) ? null : prev_msg_el.getAttribute('data-isodate');
+                const next_msg_date = next_msg_el.getAttribute('data-isodate');
+                if (prev_msg_date === null && next_msg_date === null) {
                     return;
                 }
-                if (_.isNull(prev_msg_date) || dayjs(next_msg_date).isAfter(prev_msg_date, 'day')) {
+                if ((prev_msg_date === null) || dayjs(next_msg_date).isAfter(prev_msg_date, 'day')) {
                     const day_date = dayjs(next_msg_date).startOf('day');
                     next_msg_el.insertAdjacentHTML('beforeBegin',
                         tpl_new_day({
@@ -646,12 +645,12 @@ converse.plugins.add('converse-chatview', {
             getLastMessageDate (cutoff) {
                 const first_msg = u.getFirstChildElement(this.content, '.message:not(.chat-state-notification)');
                 const oldest_date = first_msg ? first_msg.getAttribute('data-isodate') : null;
-                if (!_.isNull(oldest_date) && dayjs(oldest_date).isAfter(cutoff)) {
+                if (oldest_date !== null && dayjs(oldest_date).isAfter(cutoff)) {
                     return null;
                 }
                 const last_msg = u.getLastChildElement(this.content, '.message:not(.chat-state-notification)');
                 const most_recent_date = last_msg ? last_msg.getAttribute('data-isodate') : null;
-                if (_.isNull(most_recent_date)) {
+                if (most_recent_date === null) {
                     return null;
                 }
                 if (dayjs(most_recent_date).isBefore(cutoff)) {
@@ -742,7 +741,7 @@ converse.plugins.add('converse-chatview', {
                 const current_msg_date = dayjs(view.model.get('time')).toDate() || new Date(),
                       previous_msg_date = this.getLastMessageDate(current_msg_date);
 
-                if (_.isNull(previous_msg_date)) {
+                if (previous_msg_date === null) {
                     this.content.insertAdjacentElement('afterbegin', view.el);
                 } else {
                     const previous_msg_el = sizzle(`[data-isodate="${previous_msg_date.toISOString()}"]:last`, this.content).pop();
@@ -887,11 +886,9 @@ converse.plugins.add('converse-chatview', {
             async onFormSubmitted (ev) {
                 ev.preventDefault();
                 const textarea = this.el.querySelector('.chat-textarea');
-                const message = textarea.value.trim();
-                if (_converse.message_limit && message.length > _converse.message_limit) {
-                    return;
-                }
-                if (!message.replace(/\s/g, '').length) {
+                const message_text = textarea.value.trim();
+                if (_converse.message_limit && message_text.length > _converse.message_limit ||
+                        !message_text.replace(/\s/g, '').length) {
                     return;
                 }
                 if (!_converse.connection.authenticated) {
@@ -909,18 +906,21 @@ converse.plugins.add('converse-chatview', {
                 }
                 u.addClass('disabled', textarea);
                 textarea.setAttribute('disabled', 'disabled');
-                if (this.parseMessageForCommands(message) ||
-                    await this.model.sendMessage(message, spoiler_hint)) {
 
+                const is_command = this.parseMessageForCommands(message_text);
+                const message = is_command ? null : await this.model.sendMessage(message_text, spoiler_hint);
+                if (is_command || message) {
                     hint_el.value = '';
                     textarea.value = '';
                     u.removeClass('correcting', textarea);
                     textarea.style.height = 'auto'; // Fixes weirdness
+                }
+                if (message) {
                     /**
-                     * Triggered just before an HTML5 message notification will be sent out.
+                     * Triggered whenever a message is sent by the user
                      * @event _converse#messageSend
                      * @type { _converse.Message }
-                     * @example _converse.api.listen.on('messageSend', data => { ... });
+                     * @example _converse.api.listen.on('messageSend', message => { ... });
                      */
                     _converse.api.trigger('messageSend', message);
                 }
@@ -1041,14 +1041,14 @@ converse.plugins.add('converse-chatview', {
 
                 const textarea = this.el.querySelector('.chat-textarea');
                 if (textarea.value &&
-                        (currently_correcting === null || currently_correcting.get('message') !== textarea.value)) {
+                        ((currently_correcting === null) || currently_correcting.get('message') !== textarea.value)) {
                     if (! confirm(__("You have an unsent message which will be lost if you continue. Are you sure?"))) {
                         return;
                     }
                 }
 
                 if (currently_correcting !== message) {
-                    if (!_.isNil(currently_correcting)) {
+                    if (currently_correcting !== null) {
                         currently_correcting.save('correcting', false);
                     }
                     message.save('correcting', true);
@@ -1231,7 +1231,7 @@ converse.plugins.add('converse-chatview', {
             },
 
             createEmojiPicker () {
-                if (_.isUndefined(_converse.emojipicker)) {
+                if (_converse.emojipicker === undefined) {
                     const storage = _converse.config.get('storage'),
                           id = `converse.emoji-${_converse.bare_jid}`;
                     _converse.emojipicker = new _converse.EmojiPicker({'id': id});
@@ -1251,7 +1251,7 @@ converse.plugins.add('converse-chatview', {
             },
 
             toggleEmojiMenu (ev) {
-                if (_.isUndefined(this.emoji_dropdown)) {
+                if (this.emoji_dropdown === undefined) {
                     ev.stopPropagation();
                     this.createEmojiPicker();
                     this.insertEmojiPicker();
@@ -1367,7 +1367,7 @@ converse.plugins.add('converse-chatview', {
 
             insertEmojiPicker () {
                 var picker_el = this.el.querySelector('.emoji-picker');
-                if (!_.isNull(picker_el)) {
+                if (picker_el !== null) {
                     picker_el.innerHTML = '';
                     picker_el.appendChild(this.emoji_picker_view.el);
                 }
@@ -1436,7 +1436,7 @@ converse.plugins.add('converse-chatview', {
 
             hideNewMessagesIndicator () {
                 const new_msgs_indicator = this.el.querySelector('.new-msgs-indicator');
-                if (!_.isNull(new_msgs_indicator)) {
+                if (new_msgs_indicator !== null) {
                     new_msgs_indicator.classList.add('hidden');
                 }
             },
@@ -1474,7 +1474,7 @@ converse.plugins.add('converse-chatview', {
 
             _scrollDown () {
                 /* Inner method that gets debounced */
-                if (_.isUndefined(this.content)) {
+                if (this.content === undefined) {
                     return;
                 }
                 if (u.isVisible(this.content) && !this.model.get('scrolled')) {
@@ -1552,7 +1552,7 @@ converse.plugins.add('converse-chatview', {
                   * _converse.api.chatviews.get(['buddy1@example.com', 'buddy2@example.com'])
                   */
                 'get' (jids) {
-                    if (_.isUndefined(jids)) {
+                    if (jids === undefined) {
                         _converse.log(
                             "chatviews.get: You need to provide at least one JID",
                             Strophe.LogLevel.ERROR

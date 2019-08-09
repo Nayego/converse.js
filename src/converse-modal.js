@@ -28,11 +28,7 @@ converse.plugins.add('converse-modal', {
                     backdrop: 'static',
                     keyboard: true
                 });
-                this.el.addEventListener('hide.bs.modal', (event) => {
-                    if (!_.isNil(this.trigger_el)) {
-                        this.trigger_el.classList.remove('selected');
-                    }
-                }, false);
+                this.el.addEventListener('hide.bs.modal', () => u.removeClass('selected', this.trigger_el), false);
             },
 
             insertIntoDOM () {
@@ -79,7 +75,7 @@ converse.plugins.add('converse-modal', {
 
         Object.assign(_converse.api, {
             'alert': {
-                'show' (type, title, messages) {
+                show (type, title, messages) {
                     if (_.isString(messages)) {
                         messages = [messages];
                     }
@@ -91,7 +87,7 @@ converse.plugins.add('converse-modal', {
                         type = 'alert-warning';
                     }
 
-                    if (_.isUndefined(alert)) {
+                    if (alert === undefined) {
                         const model = new Backbone.Model({
                             'title': title,
                             'messages': messages,

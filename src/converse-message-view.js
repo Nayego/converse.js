@@ -183,7 +183,7 @@ converse.plugins.add('converse-message-view', {
             },
 
             replaceElement (msg) {
-                if (!_.isNil(this.el.parentElement)) {
+                if (this.el.parentElement) {
                     this.el.parentElement.replaceChild(msg, this.el);
                 }
                 this.setElement(msg);
@@ -417,7 +417,7 @@ converse.plugins.add('converse-message-view', {
 
             showMessageVersionsModal (ev) {
                 ev.preventDefault();
-                if (_.isUndefined(this.model.message_versions_modal)) {
+                if (this.model.message_versions_modal === undefined) {
                     this.model.message_versions_modal = new _converse.MessageVersionsModal({'model': this.model});
                 }
                 this.model.message_versions_modal.show(ev);
