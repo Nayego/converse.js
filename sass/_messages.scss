@@ -255,6 +255,31 @@
                 }
             }
 
+            .chat-msg__reacts{
+                display: flex;
+                flex: 1;
+                flex-wrap: wrap;
+                padding: 0 6px;
+                .react {
+                    list-style-type: none;
+                    background-color: rgba(var(--movim-font), 0.05);
+                    padding: 0 5px;
+                    border-radius: 0.2rem;
+                    line-height: 25px;
+                    font-size: calc(var(--font-size) *0.8);
+                    margin: 0px 2px;
+                    display: inline-flex;
+                    z-index: 1;
+                    border: solid 1px transparent;
+                    border-color: gray;
+                    box-sizing: border-box;
+                    &:focus {
+                        display: block;
+                    }
+                }
+            }
+
+
             .chat-msg__avatar {
                 margin-top: 0.5em;
                 vertical-align: middle;

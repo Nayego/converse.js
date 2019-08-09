@@ -448,6 +448,8 @@ converse.plugins.add('converse-muc-views', {
             events: {
                 'change input.fileupload': 'onFileSelection',
                 'click .chat-msg__action-edit': 'onMessageEditButtonClicked',
+                'click .chat-msg__action-react': 'onMessageReactButtonClicked',
+                'click .chat-msg__reaction': 'onReactionClicked',
                 'click .chatbox-navback': 'showControlBox',
                 'click .close-chatbox-button': 'close',
                 'click .configure-chatroom-button': 'getAndRenderConfigurationForm',
@@ -617,8 +619,8 @@ converse.plugins.add('converse-muc-views', {
             },
 
             informOfOccupantsAffiliationChange (occupant) {
-                const previous_affiliation = occupant._previousAttributes.affiliation;
-                const current_affiliation = occupant.get('affiliation');
+                const previous_affiliation = occupant._previousAttributes.affiliation,
+                      current_affiliation = occupant.get('affiliation');
 
                 if (previous_affiliation === 'admin') {
                     this.showChatEvent(__("%1$s is no longer an admin of this groupchat", occupant.get('nick')))
