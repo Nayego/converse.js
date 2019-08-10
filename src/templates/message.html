@@ -1,6 +1,16 @@
-<div class="message chat-msg {{{o.type}}}{[ if (o.is_me_message) { ]} chat-msg--action {[ } ]}{{{o.extra_classes}}}"
-        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}" data-reaction="{{{o.reactsTo}}}">
-    {[ if (o.type !== 'headline' && !o.is_me_message) { ]}
+<div class="message chat-msg {{{o.type}}} {[ if (o.is_me_message) { ]} chat-msg--action {[ } ]} {{{o.extra_classes}}}"
+        data-isodate="{{{o.time}}}" data-msgid="{{{o.msgid}}}" data-from="{{{o.from}}}" data-encrypted="{{{o.is_encrypted}}}" data-parent="{{{o.repliesTo}}}">
+        <div class="parentSpace" data-id="{{{o.msgid}}}">
+             <i class="fas fa-level-up-alt fa-rotate-90 parentIcon" style="font-size: 20px; opacity: 0;"></i>
+        </div>
+        <div class="currentSpace" data-id="{{{o.msgid}}}">
+            <i class="fas fa-level-up-alt fa-rotate-90 currentIcon" style="font-size: 20px; padding-left: 5px; opacity: 0;"></i>
+        </div>
+        <div class="childSpace" data-id="{{{o.msgid}}}">
+            <i class="fas fa-level-up-alt fa-rotate-90 childIcon" style="font-size: 20px; opacity: 0; padding-right: 6px; padding-top: 6px;"></i>
+        </div>
+        {[ if (o.type !== 'headline' && !o.is_me_message) { ]}
+
     <canvas class="avatar chat-msg__avatar" height="36" width="36"></canvas>
     {[ } ]}
     <div class="chat-msg__content chat-msg__content--{{{o.sender}}} {{{o.is_me_message ? 'chat-msg__content--action' : ''}}}">
@@ -38,6 +48,9 @@
             <div class="chat-msg__actions">
                 <button class="chat-msg__action chat-msg__action-react far fa-smile" title="{{{o.__('React to this message')}}}"></button>
             </div>
+                <div class="chat-msg__actions">
+                    <button class="chat-msg__action chat-msg__action-reply fas fa-reply" title="{{{o.__('Reply this message')}}}"></button>
+                </div>
             {[ if (o.received && !o.is_me_message && !o.is_groupchat_message) { ]} <span class="fa fa-check chat-msg__receipt"></span> {[ } ]}
 
         </div>

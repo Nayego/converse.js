@@ -91,7 +91,8 @@ converse.plugins.add('converse-modal', {
                         const model = new Backbone.Model({
                             'title': title,
                             'messages': messages,
-                            'type': type
+                            'type': type,
+                            'replyInProgress': replyInProgress
                         })
                         alert = new _converse.Alert({'model': model});
                     } else {
@@ -99,7 +100,8 @@ converse.plugins.add('converse-modal', {
                             'title': title,
                             'messages': messages,
                             'type': type,
-                            'reactionInProgress': reactionInProgress
+                            'reactionInProgress': reactionInProgress,
+                            'replyInProgress': replyInProgress
                         });
                     }
                     alert.show();

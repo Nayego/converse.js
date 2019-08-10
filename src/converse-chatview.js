@@ -329,6 +329,7 @@ converse.plugins.add('converse-chatview', {
                 'click .chat-msg__action-edit': 'onMessageEditButtonClicked',
                 'click .chat-msg__action-react': 'onMessageReactButtonClicked',
                 'click .chat-msg__reaction': 'onReactionClicked',
+                'click .chat-msg__action-reply': 'onMessageReplyButtonClicked',
                 'click .chatbox-navback': 'showControlBox',
                 'click .close-chatbox-button': 'close',
                 'click .new-msgs-indicator': 'viewUnreadMessages',
@@ -347,6 +348,8 @@ converse.plugins.add('converse-chatview', {
                 'paste .chat-textarea': 'onPaste',
                 'dragover .chat-textarea': 'onDragOver',
                 'drop .chat-textarea': 'onDrop',
+                'mouseover .chat-msg': 'highlightParents',
+                'mouseout .chat-msg' : 'dehighlightParents'
             },
 
             initialize () {
@@ -886,9 +889,19 @@ converse.plugins.add('converse-chatview', {
             async onFormSubmitted (ev) {
                 ev.preventDefault();
                 const textarea = this.el.querySelector('.chat-textarea');
-                const message_text = textarea.value.trim();
-                if (_converse.message_limit && message_text.length > _converse.message_limit ||
-                        !message_text.replace(/\s/g, '').length) {
+                let message_text, extraAttrs;
+                if(this.model.replyInProgress != ''){
+                    extraAttrs = this.model.replyInProgress;
+                    message_text = textarea.value.trim();
+                    this.model.replyInProgress = '';
+                }else{
+                    message_text= textarea.value.trim();
+                }
+
+                if (_converse.message_limit && message.length > _converse.message_limit) {
+                    return;
+                }
+                if (!message_text.replace(/\s/g, '').length) {
                     return;
                 }
                 if (!_converse.connection.authenticated) {
@@ -906,9 +919,9 @@ converse.plugins.add('converse-chatview', {
                 }
                 u.addClass('disabled', textarea);
                 textarea.setAttribute('disabled', 'disabled');
-
+                
                 const is_command = this.parseMessageForCommands(message_text);
-                const message = is_command ? null : await this.model.sendMessage(message_text, spoiler_hint);
+                const message = is_command ? null : await this.model.sendMessage(message_text, spoiler_hint, extraAttrs);
                 if (is_command || message) {
                     hint_el.value = '';
                     textarea.value = '';
@@ -1040,6 +1053,11 @@ converse.plugins.add('converse-chatview', {
                       message = this.model.messages.findWhere({'msgid': message_el.getAttribute('data-msgid')});
 
                 const textarea = this.el.querySelector('.chat-textarea');
+
+                if(this.model.replyInProgress){
+                    this.model.replyInProgress = null;
+                }
+
                 if (textarea.value &&
                         ((currently_correcting === null) || currently_correcting.get('message') !== textarea.value)) {
                     if (! confirm(__("You have an unsent message which will be lost if you continue. Are you sure?"))) {
@@ -1064,11 +1082,11 @@ converse.plugins.add('converse-chatview', {
                 const parentNode = u.ancestor(ev.target, '.chat-msg__body');
                 if(!this.model.reactionInProgress){
                     this.model.reactionInProgress = true;
-                    if(parentNode.getElementsByClassName('chat-msg__reactions') != undefined && parentNode.getElementsByClassName('chat-msg__reactions') != null 
+                    if(parentNode.getElementsByClassName('chat-msg__reactions') != undefined && parentNode.getElementsByClassName('chat-msg__reactions') !== null 
                         &&parentNode.getElementsByClassName('chat-msg__reactions').length > 0 ){
                         return;
                     }
-                    var refNode = (parentNode.getElementsByClassName("chat-msg__edit-modal")!=undefined && parentNode.getElementsByClassName("chat-msg__edit-modal")!= null &&parentNode.getElementsByClassName("chat-msg__edit-modal").length > 0 ) ? parentNode.getElementsByClassName("chat-msg__edit-modal")[0] :   parentNode.getElementsByClassName("chat-msg__actions")[0] ;
+                    var refNode = (parentNode.getElementsByClassName("chat-msg__edit-modal")!=undefined && parentNode.getElementsByClassName("chat-msg__edit-modal") !== null &&parentNode.getElementsByClassName("chat-msg__edit-modal").length > 0 ) ? parentNode.getElementsByClassName("chat-msg__edit-modal")[0] :   parentNode.getElementsByClassName("chat-msg__actions")[0] ;
                     var reactions = document.createElement('div');
                     reactions.className ="chat-msg__reactions";
 
@@ -1098,7 +1116,7 @@ converse.plugins.add('converse-chatview', {
                     reactions.appendChild(lightBulbReaction);
                     reactions.appendChild(doubtReaction);
 
-                    refNode = (parentNode.getElementsByClassName('react')!= undefined && parentNode.getElementsByClassName('react')!= null 
+                    refNode = (parentNode.getElementsByClassName('react')!= undefined && parentNode.getElementsByClassName('react')!== null 
                             && parentNode.getElementsByClassName('react').length > 0) ? 
                             parentNode.getElementsByClassName('react')[parentNode.getElementsByClassName('react').length -1] 
                             : parentNode.getElementsByClassName("chat-msg__message")[0];
@@ -1112,7 +1130,7 @@ converse.plugins.add('converse-chatview', {
                     this.model.reactionInProgress = false;
                     //remove all other reaction selectors if already displayed
                     var contentNode = u.ancestor(ev.target, '.chat-content');
-                    if(contentNode.getElementsByClassName("chat-msg__reactions")!=undefined && contentNode.getElementsByClassName("chat-msg__reactions")!= null 
+                    if(contentNode.getElementsByClassName("chat-msg__reactions")!=undefined && contentNode.getElementsByClassName("chat-msg__reactions")!== null 
                         &&contentNode.getElementsByClassName("chat-msg__reactions").length > 0){
                             var lengthSelectors = contentNode.getElementsByClassName("chat-msg__reactions").length;
                             for(var cmp = 0 ; cmp < lengthSelectors; cmp ++){
@@ -1120,7 +1138,7 @@ converse.plugins.add('converse-chatview', {
                                 curr.parentNode.removeChild(curr);
                             }
                     }
-                    if(parentNode.getElementsByClassName("chat-msg__reaction") != undefined && parentNode.getElementsByClassName("chat-msg__reaction") !=null
+                    if(parentNode.getElementsByClassName("chat-msg__reaction") != undefined && parentNode.getElementsByClassName("chat-msg__reaction") !==null
                         && parentNode.getElementsByClassName("chat-msg__reaction").length >= 5){
                             parentNode.getElementsByClassName("chat-msg__reaction")[0].style.cursor = 'default';          
                             parentNode.getElementsByClassName("chat-msg__reaction")[1].style.cursor = 'default';          
@@ -1148,6 +1166,97 @@ converse.plugins.add('converse-chatview', {
                 reactions.parentNode.removeChild(reactions); 
             },
 
+            onMessageReplyButtonClicked (ev) {
+                ev.preventDefault();
+                const message_el = u.ancestor(ev.target, '.chat-msg'), 
+                message = this.model.messages.findWhere({'msgid': message_el.getAttribute('data-msgid')}); 
+                if(!this.model.replyInProgress || this.model.replyInProgress &&
+                    this.model.replyInProgress.repliesTo != message_el.getAttribute('data-msgid')){
+                        if(message){
+                            this.model.replyInProgress = {
+                                'repliesTo': message_el.getAttribute('data-msgid'),
+                                'parentNodeRef': message_el
+                            };                    
+                        }
+                        u.addClass('replying', message_el);
+                        this.focus(); //setting focus to text area
+                    }
+
+                else{
+                    this.model.replyInProgress = null;
+                    u.removeClass('replying', message_el);
+                }
+
+            },
+            
+            highlightParents(ev) {
+                ev.preventDefault();
+                const message_el = u.ancestor(ev.target, '.chat-msg');
+                u.addClass('discussionTree', message_el);
+                var currentId = message_el.getAttribute('data-msgid');
+                var idParent = message_el.getAttribute('data-parent');
+                var parentRef = document.querySelectorAll(`[data-msgid="${idParent}"`) ? document.querySelectorAll(`[data-msgid="${idParent}"`)[0] : null; //highlighting kids
+                var kids = document.querySelectorAll(`[data-parent="${currentId}"`);
+                for (var i = 0; i < kids.length; i++) {
+                  u.addClass('discussionTreeKids', kids[i]);
+                }
+                u.addClass('discussionTreeParent', parentRef); 
+
+                //symbol next to parent first
+                var par = document.getElementsByClassName('chat-content')[0];
+                var parentSpace = document.querySelectorAll(`[data-id="${idParent}"`) ? document.querySelectorAll(`[data-id="${idParent}"`)[0] : null;
+                if (parentSpace && parentSpace.childNodes && parentSpace.childNodes[1]) {
+                  parentSpace.childNodes[1].style.opacity = 1;
+                } 
+
+                //symbols right next to current symbol and kids
+                var currentSpace = document.querySelectorAll(`[data-id="${currentId}"`) ? document.querySelectorAll(`[data-id="${currentId}"`)[1] : null;
+                if (currentSpace && currentSpace.childNodes && currentSpace.childNodes[1]) {
+                  currentSpace.childNodes[1].style.opacity = 1;
+                }
+                for (i = 0; i < kids.length; i++) {
+                  var childId = kids[i].getAttribute('data-msgid');
+                  var childSpace = document.querySelectorAll(`[data-id="${childId}"`) ? document.querySelectorAll(`[data-id="${childId}"`)[2] : null;
+        
+                  if (childSpace && childSpace.childNodes && childSpace.childNodes[1]) {
+                    childSpace.childNodes[1].style.opacity = 1;
+                  }
+                }
+            },
+
+
+            dehighlightParents(ev) {
+                ev.preventDefault();
+                const message_el = u.ancestor(ev.target, '.chat-msg'); 
+                u.removeClass('discussionTree', message_el);
+                var idParent = message_el.getAttribute('data-parent');
+                var currentId= message_el.getAttribute('data-msgid');
+                //dehighlighting kids
+                var kids = document.querySelectorAll(`[data-parent="${currentId}"`);
+                for(var i = 0 ; i < kids.length ; i++){
+                    u.removeClass('discussionTreeKids', kids[i]);
+                }
+                var parentRef = document.querySelectorAll(`[data-msgid="${idParent}"`)? document.querySelectorAll(`[data-msgid="${idParent}"`)[0] : null;
+                u.removeClass('discussionTreeParent', parentRef);
+                var parentSpace = document.querySelectorAll(`[data-id="${idParent}"`)? document.querySelectorAll(`[data-id="${idParent}"`)[0] : null;
+                if(parentSpace && parentSpace.childNodes && parentSpace.childNodes[1]){
+                    parentSpace.childNodes[1].style.opacity = 0;
+                }
+
+                //caret right next to current symbol and kids
+                var currentSpace = document.querySelectorAll(`[data-id="${currentId}"`)? document.querySelectorAll(`[data-id="${currentId}"`)[1] : null;
+                if(currentSpace && currentSpace.childNodes && currentSpace.childNodes[1]){
+                    currentSpace.childNodes[1].style.opacity = 0;
+                }
+                for(i = 0; i < kids.length; i++){
+                    var childId = kids[i].getAttribute('data-msgid');
+                    var childSpace =document.querySelectorAll(`[data-id="${childId}"`)? document.querySelectorAll(`[data-id="${childId}"`)[2] : null;
+                    if(childSpace && childSpace.childNodes && childSpace.childNodes[1]){
+                        childSpace.childNodes[1].style.opacity = 0;
+                    }
+                }
+  
+            },
             editLaterMessage () {
                 let message;
                 let idx = this.model.messages.findLastIndex('correcting');
