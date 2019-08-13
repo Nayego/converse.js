@@ -668,8 +668,9 @@ converse.plugins.add('converse-disco', {
                  */
                 async supports (feature, jid) {
                     const features = await _converse.api.disco.features.get(feature, jid);
+                    //issue: MongooseIM server doesn't respond with MAM2 support 
+                    //workaround to make MAM work 
                     if(feature == Strophe.NS.MAM){
-                        //workaround
                         return true;
                     }
                     return features.length > 0;
