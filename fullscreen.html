@@ -46,9 +46,31 @@
         authentication: 'login',
         auto_away: 300,
         auto_reconnect: true,
-        bosh_service_url: 'https://conversejs.org/http-bind/', // Please use this connection manager only for testing purposes
+        // Please use this connection manager only for testing purposes
+        // bosh_service_url: 'https://conversejs.org/http-bind/',
+        bosh_service_url: 'https://nayego.io/http-bind/',
         message_archiving: 'always',
-        view_mode: 'fullscreen'
+        view_mode: 'fullscreen',
+        show_controlbox_by_default: true,
+        default_domain: "nayego.io",
+        registration_domain: "nayego.io",
+        allow_bookmarks: true,
+        allow_public_bookmarks: true,
+        auto_list_rooms: true,
+        auto_join_rooms: ["general@muc.nayego.io", "random@muc.nayego.io"],
+        muc_nickname_from_jid: true,
+        play_sounds: true,
+        roster_groups: true,
+        show_desktop_notifications: true,
+        message_carbons: true,
+        debug: true,
+        archived_messages_page_size: 100,
+        muc_history_max_stanzas: 0,
+        visible_toolbar_buttons: {
+            spoiler: true,
+            emoji: true,
+            toggle_occupants: true
+            }
     });
 </script>
 </body>

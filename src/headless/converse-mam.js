@@ -96,6 +96,7 @@ converse.plugins.add('converse-mam', {
                 if (!(await _converse.api.disco.supports(Strophe.NS.MAM, mam_jid))) {
                     return;
                 }
+                console.log(is_groupchat);
                 let message_handler;
                 if (is_groupchat) {
                     message_handler = this.onMessage.bind(this);
