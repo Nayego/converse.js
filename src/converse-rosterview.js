@@ -79,8 +79,10 @@ converse.plugins.add('converse-rosterview', {
                     'label_xmpp_address': __('XMPP Address'),
                     'label_nickname': label_nickname,
                     'contact_placeholder': __('name@example.org'),
+                    'groupname_placeholder': __('Coworkers'),
                     'label_add': __('Add'),
-                    'error_message': __('Please enter a valid XMPP address')
+                    'error_message': __('Please enter a valid XMPP address'),
+                    'contact_group': __('Please enter a groupname for this contact')
                 }));
             },
 
@@ -175,7 +177,30 @@ converse.plugins.add('converse-rosterview', {
             },
 
             afterSubmission (form, jid, name) {
-                _converse.roster.addAndSubscribe(jid, name);
+                var groups = [];
+                const data = new FormData(form),
+                    groupname = (data.get('groupname') || '').trim();
+                if(groupname.length > 0){
+                    groups = [groupname];
+                    console.log(groups);
+                }
+                else{
+                     var str = _converse.bare_jid;
+                    var domainJid = str.substring(
+                    str.indexOf("@") + 1, 
+                    str.indexOf("/") != - 1? str.indexOf("/"):str.length);
+                    var domainContact = jid.substring(
+                    jid.indexOf("@") + 1, 
+                    jid.indexOf("/") != - 1? jid.indexOf("/"):jid.length);
+                    if(domainJid == domainContact){
+                        groups = ['Internal'];
+                    }
+                    else{
+                        groups = ['External'];
+                    }
+                }
+               console.log(groups);
+                _converse.roster.addAndSubscribe(jid, name, groups);
                 this.model.clear();
                 this.modal.hide();
             },

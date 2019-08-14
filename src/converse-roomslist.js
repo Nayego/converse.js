@@ -14,6 +14,8 @@ import { OrderedListView } from "backbone.overview";
 import converse from "@converse/headless/converse-core";
 import muc from "@converse/headless/converse-muc";
 import tpl_rooms_list from "templates/rooms_list.html";
+import tpl_internal_rooms_list from "templates/internal_rooms_list.html";
+import tpl_external_rooms_list from "templates/external_rooms_list.html";
 import tpl_rooms_list_item from "templates/rooms_list_item.html"
 
 const { Backbone, Promise, Strophe, sizzle, _ } = converse.env;
@@ -48,6 +50,49 @@ converse.plugins.add('converse-roomslist', {
 
 
         _converse.OpenRooms = _converse.Collection.extend({
+
+            comparator (room) {
+                if (_converse.bookmarks && room.get('bookmarked')) {
+                    const bookmark = _.head(_converse.bookmarks.where({'jid': room.get('jid')}));
+                    return bookmark.get('name');
+                } else {
+                    return room.get('name');
+                }
+            },
+
+            initialize () {
+                _converse.chatboxes.on('add', this.onChatBoxAdded, this);
+                _converse.chatboxes.on('change:hidden', this.onChatBoxChanged, this);
+                _converse.chatboxes.on('change:bookmarked', this.onChatBoxChanged, this);
+                _converse.chatboxes.on('change:name', this.onChatBoxChanged, this);
+                _converse.chatboxes.on('change:num_unread', this.onChatBoxChanged, this);
+                _converse.chatboxes.on('change:num_unread_general', this.onChatBoxChanged, this);
+                _converse.chatboxes.on('remove', this.onChatBoxRemoved, this);
+                this.reset(_.map(_converse.chatboxes.where({'type': _converse.CHATROOMS_TYPE}), 'attributes'));
+            },
+
+            onChatBoxAdded (item) {
+                if (item.get('type') === _converse.CHATROOMS_TYPE) {
+                    this.create(item.attributes);
+                }
+            },
+
+            onChatBoxChanged (item) {
+                if (item.get('type') === _converse.CHATROOMS_TYPE) {
+                    const room =  this.get(item.get('jid'));
+                    room && room.set(item.attributes);
+                }
+            },
+
+            onChatBoxRemoved (item) {
+                if (item.get('type') === _converse.CHATROOMS_TYPE) {
+                    const room = this.get(item.get('jid'))
+                    this.remove(room);
+                }
+            }
+        });
+
+        _converse.TypeRooms = _converse.Collection.extend({
 
             comparator (room) {
                 if (_converse.bookmarks && room.get('bookmarked')) {
@@ -141,11 +186,12 @@ converse.plugins.add('converse-roomslist', {
 
             getRoomsListElementName () {
                 if (this.model.get('bookmarked') && _converse.bookmarks) {
-                    const bookmark = _.head(_converse.bookmarks.where({'jid': this.model.get('jid')}));
-                    return bookmark.get('name');
-                } else {
-                    return this.model.get('name');
+                    const bookmark = _converse.bookmarks.findWhere({'jid': this.model.get('jid')});
+                    if (bookmark) {
+                        return bookmark.get('name');
+                    }
                 }
+                return this.model.get('name');
             }
         });
 
@@ -265,13 +311,276 @@ converse.plugins.add('converse-roomslist', {
             }
         });
 
+        _converse.InternalRoomsListView = OrderedListView.extend({
+            tagName: 'div',
+            className: 'open-rooms-list list-container rooms-list-container',
+            events: {
+                'click .add-bookmark': 'addBookmark',
+                'click .close-room': 'closeRoom',
+                'click .list-toggle': 'toggleRoomsList',
+                'click .remove-bookmark': 'removeBookmark',
+                'click .open-room': 'openRoom',
+            },
+            listSelector: '.rooms-list',
+            ItemView: _converse.RoomsListElementView,
+            subviewIndex: 'jid',
+
+            initialize () {
+                OrderedListView.prototype.initialize.apply(this, arguments);
+
+                this.model.on('add', this.showOrHide, this);
+                this.model.on('remove', this.showOrHide, this);
+
+                const storage = _converse.config.get('storage'),
+                      id = `converse.roomslist${_converse.bare_jid}`;
+
+                this.list_model = new _converse.RoomsList({'id': id});
+                this.list_model.browserStorage = new BrowserStorage[storage](id);
+                this.list_model.fetch();
+                this.render();
+                this.sortAndPositionAllItems();
+            },
+
+            render () {
+                this.el.innerHTML = tpl_internal_rooms_list({
+                    'toggle_state': this.list_model.get('toggle-state'),
+                    'desc_rooms': __('Click to toggle the list of internal groupchats'),
+                    'label_rooms': __('Internal'),
+                    '_converse': _converse
+                });
+                if (this.list_model.get('toggle-state') !== _converse.OPENED) {
+                    this.el.querySelector('.internal-rooms-list').classList.add('collapsed');
+                }
+                this.showOrHide();
+                this.insertIntoControlBox();
+                return this;
+            },
+
+            insertIntoControlBox () {
+                const controlboxview = _converse.chatboxviews.get('controlbox');
+                if (controlboxview !== undefined && !u.rootContains(_converse.root, this.el)) {
+                    const el = controlboxview.el.querySelector('.internal-rooms-list');
+                    if (el !== null) {
+                        el.parentNode.replaceChild(this.el, el);
+                    }
+                }
+            },
+
+            hide () {
+                u.hideElement(this.el);
+            },
+
+            show () {
+                u.showElement(this.el);
+            },
+
+            async openRoom (ev) {
+                ev.preventDefault();
+                const name = ev.target.textContent;
+                const jid = ev.target.getAttribute('data-room-jid');
+                const data = {
+                    'name': name || Strophe.unescapeNode(Strophe.getNodeFromJid(jid)) || jid
+                }
+                await _converse.api.rooms.open(jid, data, true);
+                _converse.api.chatviews.get(jid).focus();
+            },
+
+            closeRoom (ev) {
+                ev.preventDefault();
+                const name = ev.target.getAttribute('data-room-name');
+                const jid = ev.target.getAttribute('data-room-jid');
+                if (confirm(__("Are you sure you want to leave the groupchat %1$s?", name))) {
+                    // TODO: replace with API call
+                    _converse.chatboxviews.get(jid).close();
+                }
+            },
+
+            showOrHide (item) {
+                if (!this.model.models.length) {
+                    u.hideElement(this.el);
+                } else {
+                    u.showElement(this.el);
+                }
+            },
+
+            removeBookmark: _converse.removeBookmarkViaEvent,
+            addBookmark: _converse.addBookmarkViaEvent,
+
+            toggleRoomsList (ev) {
+                if (ev && ev.preventDefault) { ev.preventDefault(); }
+                const icon_el = ev.target.matches('.fa') ? ev.target : ev.target.querySelector('.fa');
+                if (icon_el.classList.contains("fa-caret-down")) {
+                    u.slideIn(this.el.querySelector('.internal-rooms-list')).then(() => {
+                        this.list_model.save({'toggle-state': _converse.CLOSED});
+                        icon_el.classList.remove("fa-caret-down");
+                        icon_el.classList.add("fa-caret-right");
+                    });
+                } else {
+                    u.slideOut(this.el.querySelector('.internal-rooms-list')).then(() => {
+                        this.list_model.save({'toggle-state': _converse.OPENED});
+                        icon_el.classList.remove("fa-caret-right");
+                        icon_el.classList.add("fa-caret-down");
+                    });
+                }
+            }
+        });
+
+        _converse.ExternalRoomsListView = OrderedListView.extend({
+            tagName: 'div',
+            className: 'open-rooms-list list-container rooms-list-container',
+            events: {
+                'click .add-bookmark': 'addBookmark',
+                'click .close-room': 'closeRoom',
+                'click .list-toggle': 'toggleRoomsList',
+                'click .remove-bookmark': 'removeBookmark',
+                'click .open-room': 'openRoom',
+            },
+            listSelector: '.rooms-list',
+            ItemView: _converse.RoomsListElementView,
+            subviewIndex: 'jid',
+
+            initialize () {
+                OrderedListView.prototype.initialize.apply(this, arguments);
+
+                this.model.on('add', this.showOrHide, this);
+                this.model.on('remove', this.showOrHide, this);
+
+                const storage = _converse.config.get('storage'),
+                      id = `converse.roomslist${_converse.bare_jid}`;
+
+                this.list_model = new _converse.RoomsList({'id': id});
+                this.list_model.browserStorage = new BrowserStorage[storage](id);
+                this.list_model.fetch();
+                this.render();
+                this.sortAndPositionAllItems();
+            },
+
+            render () {
+                this.el.innerHTML = tpl_external_rooms_list({
+                    'toggle_state': this.list_model.get('toggle-state'),
+                    'desc_rooms': __('Click to toggle the list of external groupchats'),
+                    'label_rooms': __('External'),
+                    '_converse': _converse
+                });
+                if (this.list_model.get('toggle-state') !== _converse.OPENED) {
+                    this.el.querySelector('.external-rooms-list').classList.add('collapsed');
+                }
+                this.showOrHide();
+                this.insertIntoControlBox();
+                return this;
+            },
+
+            insertIntoControlBox () {
+                const controlboxview = _converse.chatboxviews.get('controlbox');
+                if (controlboxview !== undefined && !u.rootContains(_converse.root, this.el)) {
+                    const el = controlboxview.el.querySelector('.external-rooms-list');
+                    if (el !== null) {
+                        el.parentNode.replaceChild(this.el, el);
+                    }
+                }
+            },
+
+            hide () {
+                u.hideElement(this.el);
+            },
+
+            show () {
+                u.showElement(this.el);
+            },
+
+            async openRoom (ev) {
+                ev.preventDefault();
+                const name = ev.target.textContent;
+                const jid = ev.target.getAttribute('data-room-jid');
+                const data = {
+                    'name': name || Strophe.unescapeNode(Strophe.getNodeFromJid(jid)) || jid
+                }
+                await _converse.api.rooms.open(jid, data, true);
+                _converse.api.chatviews.get(jid).focus();
+            },
+
+            closeRoom (ev) {
+                ev.preventDefault();
+                const name = ev.target.getAttribute('data-room-name');
+                const jid = ev.target.getAttribute('data-room-jid');
+                if (confirm(__("Are you sure you want to leave the groupchat %1$s?", name))) {
+                    // TODO: replace with API call
+                    _converse.chatboxviews.get(jid).close();
+                }
+            },
+
+            showOrHide (item) {
+                if (!this.model.models.length) {
+                    u.hideElement(this.el);
+                } else {
+                    u.showElement(this.el);
+                }
+            },
+
+            removeBookmark: _converse.removeBookmarkViaEvent,
+            addBookmark: _converse.addBookmarkViaEvent,
+
+            toggleRoomsList (ev) {
+                if (ev && ev.preventDefault) { ev.preventDefault(); }
+                const icon_el = ev.target.matches('.fa') ? ev.target : ev.target.querySelector('.fa');
+                if (icon_el.classList.contains("fa-caret-down")) {
+                    u.slideIn(this.el.querySelector('.external-rooms-list')).then(() => {
+                        this.list_model.save({'toggle-state': _converse.CLOSED});
+                        icon_el.classList.remove("fa-caret-down");
+                        icon_el.classList.add("fa-caret-right");
+                    });
+                } else {
+                    u.slideOut(this.el.querySelector('.external-rooms-list')).then(() => {
+                        this.list_model.save({'toggle-state': _converse.OPENED});
+                        icon_el.classList.remove("fa-caret-right");
+                        icon_el.classList.add("fa-caret-down");
+                    });
+                }
+            }
+        });
+
         const initRoomsListView = function () {
+            var roomLists = document.getElementsByClassName('rooms-list-container');
+            for(var i= 0; i < roomLists.length; i++){
+                console.log('cleared out');
+                roomLists[i].innerHTML = '';
+            }
             const storage = _converse.config.get('storage'),
                   id = `converse.open-rooms-{_converse.bare_jid}`,
                   model = new _converse.OpenRooms();
-
+            console.log(model);
+            var internal = model.clone();
+            var external = model.clone();
+            internal.models = [];
+            external.models = [];
+            for(var i = 0; i < model.models.length; i++){
+                var str = _converse.bare_jid;
+                var domainJid = str.substring(
+                    str.indexOf("@") + 1, 
+                    str.indexOf("/") != - 1? str.indexOf("/"):str.length);
+                var jid = model.models[i].get('jid');
+                var domainContact = jid.substring(jid.indexOf(".")+1);
+                if(model.models[i].get('project') == 'internal'){
+                    console.log(model.models[i]);
+                    console.log(model.models[i].get('project'));
+                    internal.models.push(model.models[i]);
+                }
+                else{
+                    external.models.push(model.models[i]);
+                }
+                // if(domainJid == domainContact){
+                //     internal.models.push(model.models[i]);
+                // }
+                // else{
+                //     external.models.push(model.models[i]);
+                // }
+            }
+            console.log(internal);
+            console.log(external);
             model.browserStorage = new BrowserStorage[storage](id);
-            _converse.rooms_list_view = new _converse.RoomsListView({'model': model});
+            // _converse.rooms_list_view = new _converse.RoomsListView({'model': model});
+            _converse.rooms_internal_list_view = new _converse.InternalRoomsListView({'model': internal});
+            _converse.rooms_external_list_view = new _converse.ExternalRoomsListView({'model': external});
             /**
              * Triggered once the _converse.RoomsListView has been created and initialized.
              * @event _converse#roomsListInitialized
@@ -290,8 +599,11 @@ converse.plugins.add('converse-roomslist', {
                 ]);
             }
             initRoomsListView();
+            // var reListRooms = setInterval(initRoomsListView, 2000);
+            // clearInterval(reListRooms);
         });
 
+        
         _converse.api.listen.on('reconnected', initRoomsListView);
     }
 });

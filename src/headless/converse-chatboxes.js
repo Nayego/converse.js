@@ -502,7 +502,7 @@ converse.plugins.add('converse-chatboxes', {
             },
 
             /**
-             * If the passed in `message` stanza contains a
+             * If the ingoing `message` stanza contains a
              * `<reaction>` element, return its `id` attribute.
              * @private
              * @method _converse.ChatBox#getReplaceId

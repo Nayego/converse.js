@@ -370,6 +370,8 @@ converse.plugins.add('converse-muc-views', {
             parseRoomDataFromEvent (form) {
                 const data = new FormData(form);
                 const jid = data.get('chatroom');
+                const project = data.get('internal')!== null ? data.get('internal') : data.get('external');
+                console.log(project);
                 let nick;
                 if (_converse.locked_muc_nickname) {
                     nick = _converse.getDefaultMUCNickname();
@@ -381,7 +383,8 @@ converse.plugins.add('converse-muc-views', {
                 }
                 return {
                     'jid': jid,
-                    'nick': nick
+                    'nick': nick,
+                    'project': project
                 }
             },
 
