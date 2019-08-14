@@ -87,7 +87,7 @@ converse.plugins.add('converse-mam', {
                 }
             },
 
-            async fetchArchivedMessages (options) {
+            async fetchArchivedMessages (options={}, page) {
                 if (this.disable_mam) {
                     return;
                 }
@@ -96,7 +96,6 @@ converse.plugins.add('converse-mam', {
                 if (!(await _converse.api.disco.supports(Strophe.NS.MAM, mam_jid))) {
                     return;
                 }
-                console.log(is_groupchat);
                 let message_handler;
                 if (is_groupchat) {
                     message_handler = this.onMessage.bind(this);
@@ -112,14 +111,16 @@ converse.plugins.add('converse-mam', {
                 const result = await _converse.api.archive.query(query);
                 result.messages.forEach(message_handler);
 
-                const catching_up = query.before || query.after;
-                if (result.rsm) {
-                    if (catching_up) {
-                        return this.fetchArchivedMessages(result.rsm.previous(_converse.archived_messages_page_size));
-                    } else {
-                        // TODO: Add a special kind of message which will
-                        // render as a link to fetch further messages, either
-                        // to fetch older messages or to fill in a gap.
+                if (result.error) {
+                    result.error.retry = () => this.fetchArchivedMessages(options, page);
+                    this.createMessageFromError(result.error);
+                }
+
+                if (page && result.rsm) {
+                    if (page === 'forwards') {
+                        options = result.rsm.next(_converse.archived_messages_page_size, options.before);
+                    } else if (page === 'backwards') {
+                        options = result.rsm.previous(_converse.archived_messages_page_size, options.after);
                     }
                 }
             },
@@ -216,9 +217,13 @@ converse.plugins.add('converse-mam', {
 
         _converse.api.listen.on('addClientFeatures', () => _converse.api.disco.own.features.add(Strophe.NS.MAM));
         _converse.api.listen.on('serviceDiscovered', getMAMPrefsFromFeature);
-        _converse.api.listen.on('chatReconnected', chat => chat.fetchNewestMessages());
         _converse.api.listen.on('enteredNewRoom', chat => chat.fetchNewestMessages());
-
+        _converse.api.listen.on('chatReconnected', chat => {
+            // XXX: For MUCs, we listen to enteredNewRoom instead
+            if (chat.get('type') === _converse.PRIVATE_CHAT_TYPE) {
+                chat.fetchNewestMessages();
+            }
+        });
         _converse.api.listen.on('afterMessagesFetched', chat => {
             // XXX: We don't want to query MAM every time this is triggered
             // since it's not necessary when the chat is restored from cache.
@@ -276,9 +281,9 @@ converse.plugins.add('converse-mam', {
                   * * `index`
                   * * `count`
                   * @throws {Error} An error is thrown if the XMPP server responds with an error.
-                  * @returns {Promise<Object>} A promise which resolves to an object which
-                  * will have keys `messages` and `rsm` which contains a _converse.RSM object
-                  * on which "next" or "previous" can be called before passing it in again
+                  * @returns { (Promise<Object> | _converse.TimeoutError) } A promise which resolves
+                  * to an object which will have keys `messages` and `rsm` which contains a _converse.RSM
+                  * object on which "next" or "previous" can be called before passing it in again
                   * to this method, to get the next or previous page in the result set.
                   *
                   * @example
@@ -484,16 +489,22 @@ converse.plugins.add('converse-mam', {
                         return true;
                     }, Strophe.NS.MAM);
 
-                    let iq_result, rsm;
-                    try {
-                        iq_result = await _converse.api.sendIQ(stanza, _converse.message_archiving_timeout)
-                    } catch (e) {
-                        _converse.log(
-                            "Error or timeout while trying to fetch "+
-                            "archived messages", Strophe.LogLevel.ERROR);
-                        _converse.log(e, Strophe.LogLevel.ERROR);
+                    let error;
+                    const iq_result = await _converse.api.sendIQ(stanza, _converse.message_archiving_timeout, false)
+                    if (iq_result === null) {
+                        const err_msg = "Timeout while trying to fetch archived messages.";
+                        _converse.log(err_msg, Strophe.LogLevel.ERROR);
+                        error = new _converse.TimeoutError(err_msg);
+                        return { messages, error };
+
+                    } else if (u.isErrorStanza(iq_result)) {
+                        _converse.log("Error stanza received while trying to fetch archived messages", Strophe.LogLevel.ERROR);
+                        _converse.log(iq_result, Strophe.LogLevel.ERROR);
+                        return { messages };
                     }
                     _converse.connection.deleteHandler(message_handler);
+
+                    let rsm;
                     const fin = iq_result && sizzle(`fin[xmlns="${Strophe.NS.MAM}"]`, iq_result).pop();
                     if (fin && [null, 'false'].includes(fin.getAttribute('complete'))) {
                         const set = sizzle(`set[xmlns="${Strophe.NS.RSM}"]`, fin).pop();
@@ -502,7 +513,7 @@ converse.plugins.add('converse-mam', {
                             Object.assign(rsm, pick(options, [...MAM_ATTRIBUTES, ..._converse.RSM_ATTRIBUTES]));
                         }
                     }
-                    return { messages, rsm }
+                    return { messages, rsm, error };
                 }
             }
         });

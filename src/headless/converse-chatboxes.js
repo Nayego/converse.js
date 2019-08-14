@@ -90,7 +90,8 @@ converse.plugins.add('converse-chatboxes', {
             defaults () {
                 return {
                     'msgid': _converse.connection.getUniqueId(),
-                    'time': (new Date()).toISOString()
+                    'time': (new Date()).toISOString(),
+                    'ephemeral': false
                 };
             },
 
@@ -134,7 +135,7 @@ converse.plugins.add('converse-chatboxes', {
             },
 
             isEphemeral () {
-                return this.isOnlyChatStateNotification() || this.get('type') === 'error';
+                return this.isOnlyChatStateNotification() || this.get('ephemeral');
             },
 
             getDisplayName () {
@@ -147,6 +148,22 @@ converse.plugins.add('converse-chatboxes', {
                 } else {
                     return this.get('from');
                 }
+            },
+
+            getMessageText () {
+                if (this.get('is_encrypted')) {
+                    return this.get('plaintext') ||
+                           (_converse.debug ? __('Unencryptable OMEMO message') : null);
+                }
+                return this.get('message');
+            },
+
+            isMeCommand () {
+                const text = this.getMessageText();
+                if (!text) {
+                    return false;
+                }
+                return text.startsWith('/me ');
             },
 
             sendSlotRequestStanza () {
@@ -178,7 +195,8 @@ converse.plugins.add('converse-chatboxes', {
                     _converse.log(e, Strophe.LogLevel.ERROR);
                     return this.save({
                         'type': 'error',
-                        'message': __("Sorry, could not determine upload URL.")
+                        'message': __("Sorry, could not determine upload URL."),
+                        'ephemeral': true
                     });
                 }
                 const slot = stanza.querySelector('slot');
@@ -190,7 +208,8 @@ converse.plugins.add('converse-chatboxes', {
                 } else {
                     return this.save({
                         'type': 'error',
-                        'message': __("Sorry, could not determine file upload URL.")
+                        'message': __("Sorry, could not determine file upload URL."),
+                        'ephemeral': true
                     });
                 }
             },
@@ -228,7 +247,8 @@ converse.plugins.add('converse-chatboxes', {
                     this.save({
                         'type': 'error',
                         'upload': _converse.FAILURE,
-                        'message': message
+                        'message': message,
+                        'ephemeral': true
                     });
                 };
                 xhr.open('PUT', this.get('put'), true);
@@ -323,6 +343,10 @@ converse.plugins.add('converse-chatboxes', {
             },
 
             fetchMessages () {
+                if (this.messages.fetched) {
+                    _converse.log(`Not re-fetching messages for ${this.get('jid')}`, Strophe.LogLevel.INFO);
+                    return;
+                }
                 this.messages.fetched = u.getResolveablePromise();
                 const resolve = this.messages.fetched.resolve;
                 this.messages.fetch({
@@ -330,15 +354,18 @@ converse.plugins.add('converse-chatboxes', {
                     'success': _.flow(this.afterMessagesFetched.bind(this), resolve),
                     'error': _.flow(this.afterMessagesFetched.bind(this), resolve)
                 });
+                return this.messages.fetched;
             },
 
             clearMessages () {
                 try {
+                    this.messages.models.forEach(m => m.destroy());
                     this.messages.reset();
                 } catch (e) {
                     this.messages.trigger('reset');
                     _converse.log(e, Strophe.LogLevel.ERROR);
                 } finally {
+                    delete this.messages.fetched;
                     this.messages.browserStorage._clear();
                 }
             },
@@ -392,6 +419,13 @@ converse.plugins.add('converse-chatboxes', {
                     return this.vcard.getDisplayName();
                 } else {
                     return this.get('jid');
+                }
+            },
+
+            createMessageFromError (error) {
+                if (error instanceof _converse.TimeoutError) {
+                    const msg = this.messages.create({'type': 'error', 'message': error.message, 'retry': true});
+                    msg.error = error;
                 }
             },
 
@@ -841,7 +875,8 @@ converse.plugins.add('converse-chatboxes', {
                 if (!item) {
                     this.messages.create({
                         'message': __("Sorry, looks like file upload is not supported by your server."),
-                        'type': 'error'
+                        'type': 'error',
+                        'ephemeral': true
                     });
                     return;
                 }
@@ -852,7 +887,8 @@ converse.plugins.add('converse-chatboxes', {
                 if (!slot_request_url) {
                     this.messages.create({
                         'message': __("Sorry, looks like file upload is not supported by your server."),
-                        'type': 'error'
+                        'type': 'error',
+                        'ephemeral': true
                     });
                     return;
                 }
@@ -861,7 +897,8 @@ converse.plugins.add('converse-chatboxes', {
                         return this.messages.create({
                             'message': __('The size of your file, %1$s, exceeds the maximum allowed by your server, which is %2$s.',
                                 file.name, filesize(max_file_size)),
-                            'type': 'error'
+                            'type': 'error',
+                            'ephemeral': true
                         });
                     } else {
                         const message = this.messages.create(
@@ -930,9 +967,12 @@ converse.plugins.add('converse-chatboxes', {
                     __('Sorry, an error occurred:') + ' ' + error.innerHTML;
             },
 
+            /**
+             * Given a message stanza, return the text contained in its body.
+             * @private
+             * @param { XMLElement } stanza
+             */
             getMessageBody (stanza) {
-                /* Given a message stanza, return the text contained in its body.
-                 */
                 const type = stanza.getAttribute('type');
                 if (type === 'error') {
                     return this.getErrorMessage(stanza);
@@ -1034,20 +1074,26 @@ converse.plugins.add('converse-chatboxes', {
                 return this.trigger("show");
             },
 
+            /**
+             * Indicates whether the chat is hidden and therefore
+             * whether a newly received message will be visible
+             * to the user or not.
+             * @returns {boolean}
+             */
             isHidden () {
-                /* Returns a boolean to indicate whether a newly received
-                 * message will be visible to the user or not.
-                 */
                 return this.get('hidden') ||
                     this.get('minimized') ||
                     this.isScrolledUp() ||
                     _converse.windowState === 'hidden';
             },
 
+            /**
+             * Given a newly received {@link _converse.Message} instance,
+             * update the unread counter if necessary.
+             * @private
+             * @param {_converse.Message} message
+             */
             incrementUnreadMsgCounter (message) {
-                /* Given a newly received message, update the unread counter if
-                 * necessary.
-                 */
                 if (!message || !message.get('message')) {
                     return;
                 }

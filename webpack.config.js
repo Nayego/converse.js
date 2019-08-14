@@ -44,15 +44,14 @@ const config = {
                     "prependFilenameComment": __dirname
                 }
             }]
-        },
-        {
+        }, {
             test: /webfonts\/.*\.(woff(2)?|ttf|eot|truetype|svg)(\?v=\d+\.\d+\.\d+)?$/,
             use: [
             {
                 loader: 'file-loader',
                 options: {
-                    name: '[path][name].[ext]',
-                    outputPath: '../dist/'
+                    name: '[name].[ext]',
+                    outputPath: 'webfonts/'
                 }
             }
             ]

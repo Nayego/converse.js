@@ -67,8 +67,8 @@ serve_bg: stamp-npm
 ########################################################################
 ## Translation machinery
 
-# GETTEXT = xgettext --language="JavaScript" --keyword=__ --keyword=___ --from-code=UTF-8 --output=locale/converse.pot dist/converse-no-dependencies.js --package-name=Converse.js --copyright-holder="Jan-Carel Brand" --package-version=5.0.0 -c
-GETTEXT = xgettext --language="JavaScript" --keyword=__ --keyword=___ --from-code=UTF-8 --output=locale/converse.pot dist/converse-no-dependencies.js --package-name=Converse.js --copyright-holder="Jan-Carel Brand" --package-version=4.2.0 -c
+GETTEXT = xgettext --language="JavaScript" --keyword=__ --keyword=___ --from-code=UTF-8 --output=locale/converse.pot dist/converse-no-dependencies.js --package-name=Converse.js --copyright-holder="Jan-Carel Brand" --package-version=5.0.1 -c
+
 .PHONY: pot
 pot: dist/converse-no-dependencies-es2015.js
 	$(GETTEXT) 2>&1 > /dev/null; exit $$?;
@@ -101,7 +101,7 @@ release:
 	make po
 	make po2json
 	make build
-	npm run pack
+	npm pack
 
 .PHONY: postrelease
 postrelease:
@@ -129,18 +129,13 @@ dev: stamp-npm
 ## Builds
 
 .PHONY: css
-# css: sass/*.scss dist/converse.css dist/converse.min.css dist/website.css dist/website.min.css
-
-css: sass/*.scss dist/converse.css dist/converse.min.css dist/website.css dist/website.min.css dist/font-awesome.css
+css: sass/*.scss dist/converse.css dist/converse.min.css dist/website.css dist/website.min.css
 
 dist/website.css:: stamp-npm sass
 	$(SASS) --source-map true --include-path $(BOURBON) --include-path $(BOOTSTRAP) sass/website.scss $@
 
 dist/website.min.css:: stamp-npm dist/website.css
 	$(CLEANCSS) dist/website.css > $@
-
-dist/font-awesome.css:: stamp-npm sass
-	$(SASS) --source-map true --include-path $(BOURBON) --include-path $(BOOTSTRAP) sass/font-awesome.scss $@
 
 dist/converse.css:: stamp-npm webpack.config.js sass
 	npm run converse.css

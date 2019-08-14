@@ -264,18 +264,38 @@ converse.plugins.add('converse-muc', {
                         }
                     }, 10000);
                 } else {
-                    this.occupantAdded = u.getResolveablePromise();
                     this.setOccupant();
                     this.setVCard();
                 }
             },
 
+            onOccupantRemoved (occupant) {
+                delete this.occupant;
+                const chatbox = _.get(this, 'collection.chatbox');
+                chatbox.occupants.on('add', this.onOccupantAdded, this);
+            },
+
+            onOccupantAdded (occupant) {
+                if (occupant.get('nick') === Strophe.getResourceFromJid(this.get('from'))) {
+                    this.occupant = occupant;
+                    this.occupant.on('destroy', this.onOccupantRemoved, this);
+                    const chatbox = _.get(this, 'collection.chatbox');
+                    chatbox.occupants.off('add', this.onOccupantAdded, this);
+                }
+            },
+
             setOccupant () {
+                if (this.get('type') !== 'groupchat') { return; }
                 const chatbox = _.get(this, 'collection.chatbox');
                 if (!chatbox) { return; }
                 const nick = Strophe.getResourceFromJid(this.get('from'));
                 this.occupant = chatbox.occupants.findWhere({'nick': nick});
-                this.occupantAdded.resolve();
+                if (this.occupant) {
+                    this.occupant.on('destroy', this.onOccupantRemoved, this);
+                } else {
+                    chatbox.occupants.on('add', this.onOccupantAdded, this);
+                }
+
             },
 
             getVCardForChatroomOccupant () {
@@ -373,7 +393,7 @@ converse.plugins.add('converse-muc', {
                 }
             },
 
-            initialize() {
+            async initialize() {
                 if (_converse.vcards) {
                     this.vcard = _converse.vcards.findWhere({'jid': this.get('jid')}) ||
                         _converse.vcards.create({'jid': this.get('jid')});
@@ -384,9 +404,11 @@ converse.plugins.add('converse-muc', {
                 this.on('change:chat_state', this.sendChatState, this);
                 this.on('change:connection_status', this.onConnectionStatusChanged, this);
 
-                this.initOccupants();
-                this.registerHandlers();
                 this.initMessages();
+                this.registerHandlers();
+
+                await this.initOccupants();
+                await this.fetchMessages();
                 this.enterRoom();
             },
 
@@ -397,8 +419,7 @@ converse.plugins.add('converse-muc', {
                     Strophe.LogLevel.DEBUG
                 );
                 if (conn_status !==  converse.ROOMSTATUS.ENTERED) {
-                    // We're not restoring a room from cache, so let's clear
-                    // the cache (which might be stale).
+                    // We're not restoring a room from cache, so let's clear the potentially stale cache.
                     this.removeNonMembers();
                     await this.refreshRoomFeatures();
                     if (_converse.clear_messages_on_reconnection) {
@@ -411,8 +432,8 @@ converse.plugins.add('converse-muc', {
                     }
                     this.join();
                 } else if (!(await this.rejoinIfNecessary())) {
+                    // We've restored the room from cache and we're still joined.
                     this.features.fetch();
-                    this.fetchMessages();
                 }
             },
 
@@ -421,15 +442,8 @@ converse.plugins.add('converse-muc', {
                     if (_converse.muc_fetch_members) {
                         await this.occupants.fetchMembers();
                     }
-                    // It's possible to fetch messages before entering a MUC,
-                    // but we don't support this use-case currently. By
-                    // fetching messages after members we can immediately
-                    // assign an occupant to the message before rendering it,
-                    // thereby avoiding re-renders (and therefore DOM reflows).
-                    this.fetchMessages();
-
                     /**
-                     * Triggered when the user has entered a new MUC and *after* cached messages have been fetched.
+                     * Triggered when the user has entered a new MUC
                      * @event _converse#enteredNewRoom
                      * @type { _converse.ChatRoom}
                      * @example _converse.api.listen.on('enteredNewRoom', model => { ... });
@@ -480,12 +494,11 @@ converse.plugins.add('converse-muc', {
                         'error': resolve
                     });
                 });
+                return this.occupants.fetched;
             },
 
             registerHandlers () {
-                /* Register presence and message handlers for this chat
-                 * groupchat
-                 */
+                // Register presence and message handlers for this groupchat
                 const room_jid = this.get('jid');
                 this.removeHandlers();
                 this.presence_handler = _converse.connection.addHandler(stanza => {
@@ -1111,11 +1124,19 @@ converse.plugins.add('converse-muc', {
                     .c("query", {xmlns: Strophe.NS.MUC_ADMIN})
                         .c("item", {'affiliation': affiliation});
                 const result = await _converse.api.sendIQ(iq, null, false);
-                if (result.getAttribute('type') === 'error') {
-                    const err_msg = `Not allowed to fetch ${affiliation} list for MUC ${this.get('jid')}`;
+                if (result === null) {
+                    const err_msg = `Error: timeout while fetching ${affiliation} list for MUC ${this.get('jid')}`;
+                    const err = new Error(err_msg);
                     _converse.log(err_msg, Strophe.LogLevel.WARN);
                     _converse.log(result, Strophe.LogLevel.WARN);
-                    return null;
+                    return err;
+                }
+                if (u.isErrorStanza(result)) {
+                    const err_msg = `Error: not allowed to fetch ${affiliation} list for MUC ${this.get('jid')}`;
+                    const err = new Error(err_msg);
+                    _converse.log(err_msg, Strophe.LogLevel.WARN);
+                    _converse.log(result, Strophe.LogLevel.WARN);
+                    return err;
                 }
                 return u.parseMemberListIQ(result).filter(p => p);
             },
@@ -1136,8 +1157,8 @@ converse.plugins.add('converse-muc', {
             async updateMemberLists (members) {
                 const all_affiliations = ['member', 'admin', 'owner'];
                 const aff_lists = await Promise.all(all_affiliations.map(a => this.getAffiliationList(a)));
-                const known_affiliations = all_affiliations.filter(a => aff_lists[all_affiliations.indexOf(a)] !== null);
-                const old_members = aff_lists.reduce((acc, val) => (val !== null ? [...val, ...acc] : acc), []);
+                const known_affiliations = all_affiliations.filter(a => !u.isErrorObject(aff_lists[all_affiliations.indexOf(a)]));
+                const old_members = aff_lists.reduce((acc, val) => (u.isErrorObject(val) ? acc: [...val, ...acc]), []);
                 await this.setAffiliations(u.computeAffiliationsDelta(true, false, members, old_members));
                 if (_converse.muc_fetch_members) {
                     return this.occupants.fetchMembers();
@@ -1511,6 +1532,7 @@ converse.plugins.add('converse-muc', {
                 if (forwarded) {
                     stanza = forwarded.querySelector('message');
                 }
+
                 const message = await this.getDuplicateMessage(original_stanza);
                 if (message) {
                     this.updateMessage(message, original_stanza);
@@ -1541,7 +1563,8 @@ converse.plugins.add('converse-muc', {
                     } else {
                         const attrs = {
                             'type': 'error',
-                            'message': text
+                            'message': text,
+                            'ephemeral': true
                         }
                         this.messages.create(attrs);
                     }
@@ -1579,7 +1602,7 @@ converse.plugins.add('converse-muc', {
              * @param { XMLElement } stanza: The presence stanza received
              */
             createInfoMessages (stanza) {
-                const is_self = !_.isNull(stanza.querySelector("status[code='110']"));
+                const is_self = stanza.querySelector("status[code='110']") !== null;
                 const x = sizzle(`x[xmlns="${Strophe.NS.MUC_USER}"]`, stanza).pop();
                 if (!x) {
                     return;
@@ -1911,8 +1934,8 @@ converse.plugins.add('converse-muc', {
             async fetchMembers () {
                 const all_affiliations = ['member', 'admin', 'owner'];
                 const aff_lists = await Promise.all(all_affiliations.map(a => this.chatroom.getAffiliationList(a)));
-                const new_members = aff_lists.reduce((acc, val) => (val !== null ? [...val, ...acc] : acc), []);
-                const known_affiliations = all_affiliations.filter(a => aff_lists[all_affiliations.indexOf(a)] !== null);
+                const new_members = aff_lists.reduce((acc, val) => (u.isErrorObject(val) ? acc : [...val, ...acc]), []);
+                const known_affiliations = all_affiliations.filter(a => !u.isErrorObject(aff_lists[all_affiliations.indexOf(a)]));
                 const new_jids = new_members.map(m => m.jid).filter(m => m !== undefined);
                 const new_nicks = new_members.map(m => !m.jid && m.nick || undefined).filter(m => m !== undefined);
                 const removed_members = this.filter(m => {
@@ -2278,3 +2301,5 @@ converse.plugins.add('converse-muc', {
         /************************ END API ************************/
     }
 });
+
+
