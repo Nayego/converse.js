@@ -227,6 +227,11 @@
                 color: var(--chatroom-head-color);
             }
 
+            .controlbox-heading--analytics{
+                color: var(--chatroom-head-color);
+                display: block;
+            }
+
             .controlbox-heading--contacts {
                 color: var(--chat-head-color-dark);
             }
